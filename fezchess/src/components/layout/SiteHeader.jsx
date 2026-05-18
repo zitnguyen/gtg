@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
 import { Bell, Home } from "lucide-react";
@@ -7,7 +7,10 @@ import { useSystemSettings } from "../../context/SystemSettingsContext";
 import ThemeToggle from "../common/ThemeToggle";
 import authService from "../../services/authService";
 import courseService from "../../services/courseService";
-import { getDashboardPathByRole } from "../../constants/roleRoutes";
+import {
+  getHomeToggleLabel,
+  getHomeTogglePath,
+} from "../../utils/homeToggle";
 import AnnouncementBar from "../common/AnnouncementBar";
 import NotificationBell from "../../features/notifications/components/NotificationBell";
 import NotificationCenter from "../../features/notifications/components/NotificationCenter";
@@ -19,7 +22,17 @@ import {
 import PublicMainNav from "../navigation/PublicMainNav";
 import LoginLink from "../auth/LoginLink";
 import UserAccountMenu from "../account/UserAccountMenu";
+import HeaderToolbarButton from "./HeaderToolbarButton";
+import HeaderToolbarGroup from "./HeaderToolbarGroup";
+import {
+  HEADER_PAD_L,
+  HEADER_PAD_R,
+  HEADER_PAD_X,
+  HEADER_TOOLBAR_ICON_SIZE,
+  headerToolbarSeparatorClass,
+} from "./headerToolbarStyles";
 import PortalBrand from "../../layouts/navigation/sidebar/PortalBrand";
+import { useSidebarStore } from "../../layouts/navigation/hooks/useSidebarStore";
 import { AdminHeaderActions } from "./AdminHeader";
 import { cn } from "../../lib/utils";
 
@@ -68,7 +81,10 @@ function SiteHeaderBrand({ onNavigateHome }) {
 
 function SiteHeaderPublicActions({ onNavigate }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const currentUser = authService.getCurrentUser();
+  const homeTogglePath = getHomeTogglePath(location.pathname, currentUser?.role);
+  const homeToggleLabel = getHomeToggleLabel(location.pathname, currentUser?.role);
   const [courseSlugByTitle, setCourseSlugByTitle] = useState({});
 
   const notificationCenter = useNotificationCenter({ autoOpenLimit: 8 });
@@ -113,20 +129,21 @@ function SiteHeaderPublicActions({ onNavigate }) {
   };
 
   return (
-    <>
+    <HeaderToolbarGroup>
       <ThemeToggle />
       {currentUser ? (
         <>
-          <Link
-            to={getDashboardPathByRole(currentUser.role)}
-            className="p-2 rounded-lg"
-            title="Vào dashboard"
-            aria-label="Vào dashboard"
-            onClick={onNavigate}
+          <HeaderToolbarButton
+            title={homeToggleLabel}
+            aria-label={homeToggleLabel}
+            onClick={() => {
+              navigate(homeTogglePath);
+              onNavigate?.();
+            }}
           >
-            <Home size={20} />
-          </Link>
-          <div className="relative" ref={notificationCenter.containerRef}>
+            <Home size={HEADER_TOOLBAR_ICON_SIZE} aria-hidden />
+          </HeaderToolbarButton>
+          <div className="relative shrink-0" ref={notificationCenter.containerRef}>
             <NotificationBell
               unreadCount={notificationCenter.unreadCount}
               onClick={notificationCenter.onToggle}
@@ -146,8 +163,8 @@ function SiteHeaderPublicActions({ onNavigate }) {
               }}
             />
           </div>
-          <span className="hidden sm:block h-8 w-px bg-border shrink-0" aria-hidden />
-          <UserAccountMenu className="hidden sm:block" />
+          <span className={headerToolbarSeparatorClass} aria-hidden />
+          <UserAccountMenu className="shrink-0" />
         </>
       ) : (
         <>
@@ -165,7 +182,7 @@ function SiteHeaderPublicActions({ onNavigate }) {
           </Link>
         </>
       )}
-    </>
+    </HeaderToolbarGroup>
   );
 }
 
@@ -175,6 +192,7 @@ function SiteHeaderPublicActions({ onNavigate }) {
  */
 export default function SiteHeader({ mode = "public", role = "admin" }) {
   const isPublic = mode === "public";
+  const sidebarCollapsed = useSidebarStore((state) => state.collapsed);
   const [mobileOpen, setMobileOpen] = useState(false);
   const { settings } = useSystemSettings();
   const navigate = useNavigate();
@@ -205,38 +223,49 @@ export default function SiteHeader({ mode = "public", role = "admin" }) {
           : "hidden md:flex fixed top-0 left-0 right-0 z-[60] h-14 shrink-0 border-b border-border bg-card shadow-sm",
       )}
     >
-      <div
-        className={cn(
-          "relative h-14 w-full mx-auto min-w-0",
-          isPublic ? "container px-3 sm:px-6 max-w-full" : "px-4 sm:px-6",
-        )}
-      >
+      <div className="relative h-14 w-full min-w-0 overflow-visible">
         <div
           className={cn(
             "absolute inset-0 flex items-center justify-center pointer-events-none z-[1]",
             isPublic
-              ? "px-[clamp(6.5rem,22vw,17.5rem)]"
+              ? "px-[clamp(9rem,30vw,22rem)]"
               : "px-[clamp(10rem,32vw,24rem)]",
           )}
         >
           <PublicMainNav className="pointer-events-auto hidden md:flex" />
         </div>
 
-        <div className="absolute inset-y-0 left-0 z-[2] flex items-center min-w-0 max-w-[min(42vw,17.5rem)]">
+        <div
+          className={cn(
+            "absolute inset-y-0 left-0 z-[2] flex items-center min-w-0",
+            isPublic && HEADER_PAD_L,
+            isPublic ? "max-w-[min(42vw,17.5rem)]" : cn(
+                  "border-r border-border/60 transition-[width] duration-300 ease-out",
+                  sidebarCollapsed ? "w-[68px]" : "w-64",
+                ),
+          )}
+        >
           {isPublic ? (
             <SiteHeaderBrand onNavigateHome={closeMobile} />
           ) : (
-            <PortalBrand role={role} />
+            <div
+              className={cn(
+                "flex h-full w-full items-center",
+                sidebarCollapsed ? "justify-center px-2" : "px-4 sm:px-5",
+              )}
+            >
+              <PortalBrand role={role} compact={sidebarCollapsed} />
+            </div>
           )}
         </div>
 
-        <div
-          className={cn(
-            "absolute inset-y-0 right-0 z-[2] flex items-center justify-end gap-2 sm:gap-3 min-w-0",
-            isPublic ? "max-w-[min(42vw,17.5rem)]" : "max-w-[min(52vw,22rem)]",
-          )}
-        >
-          <div className="hidden md:flex items-center gap-2 sm:gap-3">
+        <div className="absolute inset-y-0 right-0 z-[2] flex items-center justify-end min-w-0 overflow-visible">
+          <div
+            className={cn(
+              "hidden md:flex items-center h-full overflow-visible",
+              HEADER_PAD_R,
+            )}
+          >
             {isPublic ? (
               <SiteHeaderPublicActions />
             ) : (
@@ -245,8 +274,11 @@ export default function SiteHeader({ mode = "public", role = "admin" }) {
           </div>
 
           {isPublic ? (
-            <div className="md:hidden flex items-center gap-2">
+            <div className={cn("md:hidden flex items-center gap-2 shrink-0", HEADER_PAD_R)}>
               <ThemeToggle />
+              {authService.getCurrentUser() ? (
+                <UserAccountMenu className="shrink-0 [&_button]:pl-1.5 [&_button]:pr-1 [&_button]:gap-1.5" />
+              ) : null}
               <button
                 type="button"
                 onClick={() => setMobileOpen((v) => !v)}
@@ -274,7 +306,7 @@ export default function SiteHeader({ mode = "public", role = "admin" }) {
               exit={{ opacity: 0, height: 0 }}
               className="md:hidden overflow-hidden border-t border-border"
             >
-              <div className="container mx-auto px-3 sm:px-6 py-4 space-y-2">
+              <div className={cn("mx-auto w-full max-w-[1400px] py-4 space-y-2", HEADER_PAD_X)}>
                 <PublicMainNav variant="mobile" onNavigate={closeMobile} />
                 <SiteHeaderMobileAccount
                   onNavigate={closeMobile}
@@ -293,8 +325,11 @@ export default function SiteHeader({ mode = "public", role = "admin" }) {
 
 function SiteHeaderMobileAccount({ onNavigate, onLogout }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const currentUser = authService.getCurrentUser();
   const notificationsPath = getRoleNotificationPath(currentUser?.role);
+  const homeTogglePath = getHomeTogglePath(location.pathname, currentUser?.role);
+  const homeToggleLabel = getHomeToggleLabel(location.pathname, currentUser?.role);
   const notificationCenter = useNotificationCenter({ autoOpenLimit: 8 });
 
   if (!currentUser) {
@@ -337,14 +372,17 @@ function SiteHeaderMobileAccount({ onNavigate, onLogout }) {
           </span>
         ) : null}
       </button>
-      <Link
-        to={getDashboardPathByRole(currentUser.role)}
-        onClick={onNavigate}
-        className="flex items-center gap-2 py-3 px-4 rounded-xl font-medium"
+      <button
+        type="button"
+        onClick={() => {
+          navigate(homeTogglePath);
+          onNavigate();
+        }}
+        className="flex w-full items-center gap-2 py-3 px-4 rounded-xl font-medium"
       >
         <Home size={18} />
-        <span>Vào dashboard</span>
-      </Link>
+        <span>{homeToggleLabel}</span>
+      </button>
       <button
         type="button"
         onClick={onLogout}

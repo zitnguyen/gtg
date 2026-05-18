@@ -10,7 +10,7 @@ const PORTAL_LABELS = {
 };
 
 /** Logo + tên trung tâm — header portal (cạnh menu giữa) */
-function PortalBrand({ role = "admin", className = "" }) {
+function PortalBrand({ role = "admin", compact = false, className = "" }) {
   const { settings } = useSystemSettings();
   const centerName = settings?.centerName || "Z Chess";
   const portalLabel = PORTAL_LABELS[role] || "";
@@ -18,7 +18,9 @@ function PortalBrand({ role = "admin", className = "" }) {
   return (
     <Link
       to="/"
-      className={`flex items-center gap-3 min-w-0 max-w-full hover:opacity-90 transition-opacity ${className}`}
+      className={`flex items-center gap-3 min-w-0 max-w-full hover:opacity-90 transition-opacity ${
+        compact ? "justify-center w-full" : ""
+      } ${className}`}
       title="Về trang chủ"
     >
       {settings?.logoUrl ? (
@@ -32,16 +34,18 @@ function PortalBrand({ role = "admin", className = "" }) {
           ♟
         </div>
       )}
-      <div className="min-w-0 hidden sm:flex flex-col justify-center gap-1.5">
-        <p className="font-display text-sm font-bold truncate leading-snug">
-          {centerName}
-        </p>
-        {portalLabel ? (
-          <p className="font-display text-sm font-normal uppercase tracking-wide text-muted-foreground truncate leading-snug">
-            {portalLabel}
+      {!compact ? (
+        <div className="min-w-0 hidden sm:flex flex-col justify-center gap-1.5">
+          <p className="font-display text-sm font-bold truncate leading-snug">
+            {centerName}
           </p>
-        ) : null}
-      </div>
+          {portalLabel ? (
+            <p className="font-display text-sm font-normal uppercase tracking-wide text-muted-foreground truncate leading-snug">
+              {portalLabel}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
     </Link>
   );
 }

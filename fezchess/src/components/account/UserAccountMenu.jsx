@@ -22,6 +22,10 @@ import { getRoleLabel } from "../../constants/roleLabel";
 import Avatar from "../ui/Avatar";
 import { Button, Field, Input } from "../ui";
 import { cn } from "../../lib/utils";
+import {
+  HEADER_TOOLBAR_ICON_SIZE,
+  headerAccountTriggerClass,
+} from "../layout/headerToolbarStyles";
 
 const MENU_ITEMS = [
   { id: "avatar", label: "Ảnh đại diện", icon: ImageIcon },
@@ -212,49 +216,50 @@ export default function UserAccountMenu({ className }) {
   if (!cachedUser) return null;
 
   return (
-    <div ref={containerRef} className={cn("relative", className)}>
+    <div
+      ref={containerRef}
+      className={cn("relative flex items-center h-9 overflow-visible", className)}
+    >
       <button
         type="button"
         onClick={handleToggle}
-        className={cn(
-          "flex items-center gap-2 min-w-0 rounded-lg py-1 pl-2 pr-1.5",
-          "hover:bg-muted transition-colors",
-          open && "bg-muted",
-        )}
+        className={cn(headerAccountTriggerClass, open && "bg-muted")}
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-label="Tài khoản"
       >
-        <div className="text-right min-w-0 hidden sm:block">
-          <p className="text-sm font-medium text-foreground truncate max-w-[7rem] lg:max-w-[9rem]">
-            {displayName}
-          </p>
-          <p className="text-xs text-muted-foreground truncate max-w-[7rem] lg:max-w-[9rem]">
-            {roleLabel}
-          </p>
-        </div>
         <Avatar
           src={avatarUrl || undefined}
           name={displayName}
           size="sm"
           className="shrink-0"
         />
+        <div className="hidden md:flex flex-col justify-center h-8 min-w-0 max-w-[8.5rem] lg:max-w-[10rem] xl:max-w-[11rem] leading-tight text-left">
+          <span className="text-xs font-medium text-foreground truncate">
+            {displayName}
+          </span>
+          <span className="text-[10px] text-muted-foreground truncate mt-0.5">
+            {roleLabel}
+          </span>
+        </div>
         <ChevronDown
+          size={HEADER_TOOLBAR_ICON_SIZE}
           className={cn(
-            "h-4 w-4 text-muted-foreground shrink-0 transition-transform",
+            "text-muted-foreground shrink-0 transition-transform",
             open && "rotate-180",
           )}
+          aria-hidden
         />
       </button>
 
       <AnimatePresence>
         {open ? (
           <motion.div
-            initial={{ opacity: 0, y: -6, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -6, scale: 0.98 }}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 6 }}
             transition={{ duration: 0.16 }}
-            className="absolute right-0 mt-2 w-[min(100vw-2rem,18rem)] rounded-xl border border-border bg-popover text-popover-foreground shadow-xl z-[200] overflow-hidden"
+            className="absolute top-full right-0 mt-2 w-[min(100vw-2rem,18rem)] rounded-xl border border-border bg-popover text-popover-foreground shadow-xl z-[200] overflow-hidden"
             role="dialog"
             aria-label="Cài đặt tài khoản"
           >

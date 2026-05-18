@@ -3,6 +3,7 @@ import { cn } from "../../lib/utils";
 const SIZES = {
   xs: "h-6 w-6 text-[10px] rounded-[5px]",
   sm: "h-8 w-8 text-xs rounded-[6px]",
+  toolbar: "h-9 w-9 text-xs rounded-[6px]",
   md: "h-10 w-10 text-sm rounded-[7px]",
   lg: "h-14 w-14 text-base rounded-[10px]",
 };

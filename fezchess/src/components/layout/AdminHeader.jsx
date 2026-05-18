@@ -1,8 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { Home } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import authService from "../../services/authService";
-import { getDashboardPathByRole } from "../../constants/roleRoutes";
+import {
+  getHomeToggleLabel,
+  getHomeTogglePath,
+} from "../../utils/homeToggle";
 import ThemeToggle from "../common/ThemeToggle";
 import NotificationBell from "../../features/notifications/components/NotificationBell";
 import NotificationCenter from "../../features/notifications/components/NotificationCenter";
@@ -15,17 +18,26 @@ import {
 import { debugPlayNotificationSound } from "../../utils/notificationSound";
 import courseService from "../../services/courseService";
 import UserAccountMenu from "../account/UserAccountMenu";
+import HeaderToolbarButton from "./HeaderToolbarButton";
+import HeaderToolbarGroup from "./HeaderToolbarGroup";
+import {
+  HEADER_TOOLBAR_ICON_SIZE,
+  headerToolbarSeparatorClass,
+} from "./headerToolbarStyles";
+import { cn } from "../../lib/utils";
 
 /** Tiện ích header portal — theme, home, TB + menu tài khoản */
 export function AdminHeaderActions() {
   const navigate = useNavigate();
+  const location = useLocation();
   const currentUser = authService.getCurrentUser();
   const [courseSlugByTitle, setCourseSlugByTitle] = useState({});
   const notificationCenter = useNotificationCenter({ autoOpenLimit: 8 });
   useNotificationSound();
 
   const notificationsPath = getRoleNotificationPath(currentUser?.role);
-  const dashboardPath = getDashboardPathByRole(currentUser?.role) || "/";
+  const homeTogglePath = getHomeTogglePath(location.pathname, currentUser?.role);
+  const homeToggleLabel = getHomeToggleLabel(location.pathname, currentUser?.role);
 
   useEffect(() => {
     if (!currentUser?._id && !currentUser?.userId) return undefined;
@@ -75,17 +87,16 @@ export function AdminHeaderActions() {
   };
 
   return (
-    <div className="flex shrink-0 items-center justify-end gap-1.5 sm:gap-2 h-9 max-w-[min(52vw,22rem)]">
+    <HeaderToolbarGroup>
       <ThemeToggle />
-      <Link
-        to={dashboardPath}
-        className="p-2 rounded-lg text-foreground hover:bg-muted transition-colors"
-        title="Về dashboard"
-        aria-label="Về dashboard"
+      <HeaderToolbarButton
+        onClick={() => navigate(homeTogglePath)}
+        title={homeToggleLabel}
+        aria-label={homeToggleLabel}
       >
-        <Home size={20} />
-      </Link>
-      <span onDoubleClick={handleBellDoubleClick} className="inline-flex">
+        <Home size={HEADER_TOOLBAR_ICON_SIZE} aria-hidden />
+      </HeaderToolbarButton>
+      <span onDoubleClick={handleBellDoubleClick} className="inline-flex shrink-0">
         <div className="relative" ref={notificationCenter.containerRef}>
           <NotificationBell
             unreadCount={notificationCenter.unreadCount}
@@ -108,9 +119,9 @@ export function AdminHeaderActions() {
         </div>
       </span>
 
-      <div className="h-8 w-px bg-border mx-0.5 hidden sm:block shrink-0" />
-      <UserAccountMenu />
-    </div>
+      <span className={headerToolbarSeparatorClass} aria-hidden />
+      <UserAccountMenu className="shrink-0" />
+    </HeaderToolbarGroup>
   );
 }
 

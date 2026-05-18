@@ -1,11 +1,16 @@
 import React, { memo } from "react";
 import { Bell } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { cn } from "../../../lib/utils";
+import {
+  HEADER_TOOLBAR_ICON_SIZE,
+  headerToolbarButtonClass,
+} from "../../../components/layout/headerToolbarStyles";
 
 const NotificationBell = ({
   unreadCount = 0,
   onClick,
-  size = 20,
+  size = HEADER_TOOLBAR_ICON_SIZE,
   className = "",
   title = "Thông báo",
 }) => {
@@ -16,7 +21,7 @@ const NotificationBell = ({
     <button
       type="button"
       onClick={onClick}
-      className={`relative inline-flex items-center justify-center p-2 rounded-full hover:bg-muted transition-colors ${className}`}
+      className={cn("relative", headerToolbarButtonClass, className)}
       title={title}
       aria-label={title}
     >

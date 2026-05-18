@@ -3,6 +3,7 @@ import { Menu } from "lucide-react";
 import { useSystemSettings } from "../../../context/SystemSettingsContext";
 import { useSidebarActions } from "../hooks/useSidebarStore";
 import { useShellTopBarOptional } from "../shell/ShellTopBarContext";
+import { HEADER_PAD_X } from "../../../components/layout/headerToolbarStyles";
 
 const MobileTopBar = () => {
   const { settings } = useSystemSettings();
@@ -11,11 +12,13 @@ const MobileTopBar = () => {
   const pageTitle = shell?.payload?.mobileTitle?.trim();
 
   return (
-    <div className="md:hidden sticky top-0 z-30 h-14 shrink-0 bg-card/95 backdrop-blur-sm border-b border-border px-3 sm:px-6 flex items-center gap-2 sm:gap-3 min-w-0 max-w-full shadow-sm">
+    <div
+      className={`md:hidden sticky top-0 z-30 h-14 shrink-0 bg-card/95 backdrop-blur-sm border-b border-border ${HEADER_PAD_X} flex items-center gap-3 min-w-0 max-w-full shadow-sm`}
+    >
       <button
         type="button"
         onClick={openMobileDrawer}
-        className="p-2 -ml-2 text-muted-foreground hover:bg-muted rounded-lg transition-colors"
+        className="p-2 text-muted-foreground hover:bg-muted rounded-lg transition-colors shrink-0"
         aria-label="Mở menu"
       >
         <Menu size={22} />

@@ -21,11 +21,11 @@ const NotificationCenter = ({
       {open && (
         <motion.div
           key="notification-center"
-          initial={{ opacity: 0, y: -8, scale: 0.98 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: -8, scale: 0.98 }}
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 6 }}
           transition={{ duration: 0.18 }}
-          className="absolute right-0 mt-2 w-[360px] max-w-[90vw] bg-background border border-border rounded-2xl shadow-2xl z-[200] overflow-hidden"
+          className="absolute top-full right-0 mt-2 w-[360px] max-w-[90vw] bg-background border border-border rounded-2xl shadow-2xl z-[200] overflow-hidden"
           role="dialog"
           aria-label="Trung tâm thông báo"
         >
