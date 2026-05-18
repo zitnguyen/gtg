@@ -1,31 +1,64 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronDown, LogOut } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ImageIcon,
+  KeyRound,
+  LogOut,
+  UserRound,
+} from "lucide-react";
 import { toast } from "sonner";
 import authService from "../../services/authService";
 import {
   changeMyPassword,
   getMyAccount,
   updateMyAccount,
+  uploadMyAvatar,
 } from "../../services/accountService";
 import { getRoleLabel } from "../../constants/roleLabel";
 import Avatar from "../ui/Avatar";
 import { Button, Field, Input } from "../ui";
 import { cn } from "../../lib/utils";
 
+const MENU_ITEMS = [
+  { id: "avatar", label: "Ảnh đại diện", icon: ImageIcon },
+  { id: "name", label: "Họ và tên", icon: UserRound },
+  { id: "password", label: "Đổi mật khẩu", icon: KeyRound },
+];
+
+function MenuRow({ icon: Icon, label, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
+    >
+      <Icon size={16} className="text-muted-foreground shrink-0" />
+      <span className="flex-1 text-left font-medium">{label}</span>
+      <ChevronRight size={16} className="text-muted-foreground shrink-0" />
+    </button>
+  );
+}
+
 export default function UserAccountMenu({ className }) {
   const navigate = useNavigate();
   const containerRef = useRef(null);
+  const avatarInputRef = useRef(null);
   const [open, setOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState(null);
   const [loading, setLoading] = useState(false);
   const [savingName, setSavingName] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   const cachedUser = authService.getCurrentUser();
   const [fullName, setFullName] = useState(
     cachedUser?.fullName || cachedUser?.username || "",
   );
+  const [avatarUrl, setAvatarUrl] = useState(cachedUser?.avatarUrl || "");
   const [pwd, setPwd] = useState({
     currentPassword: "",
     newPassword: "",
@@ -33,7 +66,7 @@ export default function UserAccountMenu({ className }) {
   });
 
   const displayName =
-    cachedUser?.fullName || cachedUser?.username || "User";
+    fullName.trim() || cachedUser?.fullName || cachedUser?.username || "User";
   const roleLabel = getRoleLabel(cachedUser?.role);
 
   const loadProfile = useCallback(async () => {
@@ -41,6 +74,7 @@ export default function UserAccountMenu({ className }) {
       setLoading(true);
       const data = await getMyAccount();
       if (data?.fullName) setFullName(data.fullName);
+      if (typeof data?.avatarUrl === "string") setAvatarUrl(data.avatarUrl);
     } catch (err) {
       toast.error(
         err?.apiMessage ||
@@ -64,6 +98,20 @@ export default function UserAccountMenu({ className }) {
     return () => document.removeEventListener("mousedown", onPointerDown);
   }, [open, loadProfile]);
 
+  useEffect(() => {
+    if (!open) {
+      setActiveSection(null);
+      setPwd({ currentPassword: "", newPassword: "", confirmPassword: "" });
+    }
+  }, [open]);
+
+  const handleToggle = () => {
+    setOpen((v) => {
+      if (v) setActiveSection(null);
+      return !v;
+    });
+  };
+
   const handleSaveName = async (e) => {
     e.preventDefault();
     const trimmed = fullName.trim();
@@ -75,6 +123,7 @@ export default function UserAccountMenu({ className }) {
       setSavingName(true);
       await updateMyAccount({ fullName: trimmed });
       toast.success("Đã cập nhật họ tên");
+      setActiveSection(null);
     } catch (err) {
       toast.error(
         err?.apiMessage ||
@@ -84,6 +133,39 @@ export default function UserAccountMenu({ className }) {
       );
     } finally {
       setSavingName(false);
+    }
+  };
+
+  const handleAvatarPick = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!/^image\/(jpeg|jpg|png)$/i.test(file.type)) {
+      toast.error("Chỉ hỗ trợ ảnh JPG hoặc PNG");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Kích thước ảnh tối đa 2MB");
+      return;
+    }
+    try {
+      setUploadingAvatar(true);
+      const res = await uploadMyAvatar(file);
+      const url = res?.url || res?.data?.url;
+      if (!url) throw new Error("Thiếu URL ảnh từ server");
+      await updateMyAccount({ avatarUrl: url });
+      setAvatarUrl(url);
+      toast.success("Đã cập nhật ảnh đại diện");
+      setActiveSection(null);
+    } catch (err) {
+      toast.error(
+        err?.apiMessage ||
+          err?.response?.data?.message ||
+          err?.message ||
+          "Cập nhật ảnh thất bại",
+      );
+    } finally {
+      setUploadingAvatar(false);
     }
   };
 
@@ -105,6 +187,7 @@ export default function UserAccountMenu({ className }) {
       });
       toast.success("Đổi mật khẩu thành công");
       setPwd({ currentPassword: "", newPassword: "", confirmPassword: "" });
+      setActiveSection(null);
     } catch (err) {
       toast.error(
         err?.apiMessage ||
@@ -123,13 +206,16 @@ export default function UserAccountMenu({ className }) {
     navigate("/login");
   };
 
+  const sectionTitle =
+    MENU_ITEMS.find((item) => item.id === activeSection)?.label || "";
+
   if (!cachedUser) return null;
 
   return (
     <div ref={containerRef} className={cn("relative", className)}>
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={handleToggle}
         className={cn(
           "flex items-center gap-2 min-w-0 rounded-lg py-1 pl-2 pr-1.5",
           "hover:bg-muted transition-colors",
@@ -147,7 +233,12 @@ export default function UserAccountMenu({ className }) {
             {roleLabel}
           </p>
         </div>
-        <Avatar name={displayName} size="sm" className="shrink-0" />
+        <Avatar
+          src={avatarUrl || undefined}
+          name={displayName}
+          size="sm"
+          className="shrink-0"
+        />
         <ChevronDown
           className={cn(
             "h-4 w-4 text-muted-foreground shrink-0 transition-transform",
@@ -163,46 +254,128 @@ export default function UserAccountMenu({ className }) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -6, scale: 0.98 }}
             transition={{ duration: 0.16 }}
-            className="absolute right-0 mt-2 w-[min(100vw-2rem,20rem)] rounded-xl border border-border bg-popover text-popover-foreground shadow-xl z-[200] overflow-hidden"
+            className="absolute right-0 mt-2 w-[min(100vw-2rem,18rem)] rounded-xl border border-border bg-popover text-popover-foreground shadow-xl z-[200] overflow-hidden"
             role="dialog"
             aria-label="Cài đặt tài khoản"
           >
             <div className="px-4 py-3 border-b border-border">
-              <p className="text-sm font-semibold text-foreground">
-                Tài khoản
-              </p>
-              <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                {cachedUser.username || cachedUser.email || "—"}
-              </p>
+              {activeSection ? (
+                <button
+                  type="button"
+                  onClick={() => setActiveSection(null)}
+                  className="flex items-center gap-1.5 text-sm font-medium text-foreground hover:text-primary transition-colors"
+                >
+                  <ChevronLeft size={16} />
+                  Quay lại
+                </button>
+              ) : (
+                <>
+                  <p className="text-sm font-semibold text-foreground">
+                    Tài khoản
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                    {cachedUser.username || cachedUser.email || "—"}
+                  </p>
+                </>
+              )}
             </div>
 
-            <div className="p-4 space-y-4 max-h-[min(70vh,28rem)] overflow-y-auto">
-              <form onSubmit={handleSaveName} className="space-y-3">
-                <Field label="Họ và tên" required>
-                  <Input
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    disabled={loading || savingName}
-                    placeholder="Nhập họ tên"
-                    autoComplete="name"
-                  />
-                </Field>
-                <Button
-                  type="submit"
-                  size="sm"
-                  className="w-full"
-                  loading={savingName}
-                  disabled={loading}
-                >
-                  Lưu họ tên
-                </Button>
-              </form>
+            <div className="p-2">
+              {!activeSection ? (
+                <div className="space-y-0.5">
+                  {MENU_ITEMS.map((item) => (
+                    <MenuRow
+                      key={item.id}
+                      icon={item.icon}
+                      label={item.label}
+                      onClick={() => setActiveSection(item.id)}
+                    />
+                  ))}
+                  <div className="my-1 border-t border-border" />
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors"
+                  >
+                    <LogOut size={16} className="shrink-0" />
+                    <span>Đăng xuất</span>
+                  </button>
+                </div>
+              ) : null}
 
-              <div className="border-t border-border pt-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">
-                  Đổi mật khẩu
-                </p>
-                <form onSubmit={handleChangePassword} className="space-y-3">
+              {activeSection === "avatar" ? (
+                <div className="px-2 py-3 space-y-4">
+                  <p className="text-sm font-semibold text-foreground px-1">
+                    {sectionTitle}
+                  </p>
+                  <div className="flex flex-col items-center gap-3">
+                    <Avatar
+                      src={avatarUrl || undefined}
+                      name={displayName}
+                      size="lg"
+                    />
+                    <input
+                      ref={avatarInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/jpg"
+                      className="hidden"
+                      onChange={handleAvatarPick}
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="w-full"
+                      loading={uploadingAvatar}
+                      disabled={loading}
+                      onClick={() => avatarInputRef.current?.click()}
+                    >
+                      Chọn ảnh mới
+                    </Button>
+                    <p className="text-xs text-muted-foreground text-center">
+                      JPG hoặc PNG, tối đa 2MB
+                    </p>
+                  </div>
+                </div>
+              ) : null}
+
+              {activeSection === "name" ? (
+                <form
+                  onSubmit={handleSaveName}
+                  className="px-2 py-3 space-y-3"
+                >
+                  <p className="text-sm font-semibold text-foreground px-1">
+                    {sectionTitle}
+                  </p>
+                  <Field label="Họ và tên" required>
+                    <Input
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      disabled={loading || savingName}
+                      placeholder="Nhập họ tên"
+                      autoComplete="name"
+                    />
+                  </Field>
+                  <Button
+                    type="submit"
+                    size="sm"
+                    className="w-full"
+                    loading={savingName}
+                    disabled={loading}
+                  >
+                    Lưu họ tên
+                  </Button>
+                </form>
+              ) : null}
+
+              {activeSection === "password" ? (
+                <form
+                  onSubmit={handleChangePassword}
+                  className="px-2 py-3 space-y-3"
+                >
+                  <p className="text-sm font-semibold text-foreground px-1">
+                    {sectionTitle}
+                  </p>
                   <Field label="Mật khẩu hiện tại" required>
                     <Input
                       type="password"
@@ -252,18 +425,7 @@ export default function UserAccountMenu({ className }) {
                     Đổi mật khẩu
                   </Button>
                 </form>
-              </div>
-
-              <div className="border-t border-border pt-2">
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors"
-                >
-                  <LogOut size={16} />
-                  Đăng xuất
-                </button>
-              </div>
+              ) : null}
             </div>
           </motion.div>
         ) : null}

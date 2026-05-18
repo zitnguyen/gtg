@@ -25,7 +25,7 @@ exports.updateMe = asyncHandler(async (req, res) => {
     return res.status(404).json({ message: "Không tìm thấy người dùng" });
   }
 
-  const { fullName, phone } = req.body;
+  const { fullName, phone, avatarUrl } = req.body;
   if (typeof fullName === "string") {
     const trimmed = fullName.trim();
     if (!trimmed) {
@@ -35,6 +35,9 @@ exports.updateMe = asyncHandler(async (req, res) => {
   }
   if (typeof phone === "string") {
     user.phone = phone.trim();
+  }
+  if (typeof avatarUrl === "string") {
+    user.avatarUrl = avatarUrl.trim();
   }
 
   await user.save();

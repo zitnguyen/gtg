@@ -46,3 +46,11 @@ export async function changeMyPassword(payload) {
   }
   return axiosClient.post("/users/me/change-password", payload);
 }
+
+export async function uploadMyAvatar(file) {
+  const formData = new FormData();
+  formData.append("avatar", file);
+  return axiosClient.post("/upload/avatar", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+}

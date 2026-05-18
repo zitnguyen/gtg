@@ -110,7 +110,6 @@ const chatImageUpload = multer({
 router.post(
   "/avatar",
   protect,
-  authorize("Admin", "Teacher"),
   (req, res, next) => {
     upload.single("avatar")(req, res, (err) => {
       if (err) {
