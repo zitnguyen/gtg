@@ -18,8 +18,8 @@ function PortalBrand({ role = "admin", compact = false, className = "" }) {
   return (
     <Link
       to="/"
-      className={`flex items-center gap-3 min-w-0 max-w-full hover:opacity-90 transition-opacity ${
-        compact ? "justify-center w-full" : ""
+      className={`flex items-center gap-3 min-w-0 w-full max-w-full hover:opacity-90 transition-opacity ${
+        compact ? "justify-center" : ""
       } ${className}`}
       title="Về trang chủ"
     >
@@ -35,12 +35,12 @@ function PortalBrand({ role = "admin", compact = false, className = "" }) {
         </div>
       )}
       {!compact ? (
-        <div className="min-w-0 hidden sm:flex flex-col justify-center gap-1.5">
-          <p className="font-display text-sm font-bold truncate leading-snug">
+        <div className="min-w-0 flex-1 hidden sm:flex flex-col items-center justify-center text-center gap-1.5">
+          <p className="font-display text-sm font-bold truncate max-w-full leading-snug">
             {centerName}
           </p>
           {portalLabel ? (
-            <p className="font-display text-sm font-normal uppercase tracking-wide text-muted-foreground truncate leading-snug">
+            <p className="font-display text-sm font-normal uppercase tracking-wide text-muted-foreground truncate max-w-full leading-snug">
               {portalLabel}
             </p>
           ) : null}

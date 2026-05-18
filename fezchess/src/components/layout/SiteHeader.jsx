@@ -7,10 +7,7 @@ import { useSystemSettings } from "../../context/SystemSettingsContext";
 import ThemeToggle from "../common/ThemeToggle";
 import authService from "../../services/authService";
 import courseService from "../../services/courseService";
-import {
-  getHomeToggleLabel,
-  getHomeTogglePath,
-} from "../../utils/homeToggle";
+import { getHomeToggleLabel, getHomeTogglePath } from "../../utils/homeToggle";
 import AnnouncementBar from "../common/AnnouncementBar";
 import NotificationBell from "../../features/notifications/components/NotificationBell";
 import NotificationCenter from "../../features/notifications/components/NotificationCenter";
@@ -83,8 +80,14 @@ function SiteHeaderPublicActions({ onNavigate }) {
   const navigate = useNavigate();
   const location = useLocation();
   const currentUser = authService.getCurrentUser();
-  const homeTogglePath = getHomeTogglePath(location.pathname, currentUser?.role);
-  const homeToggleLabel = getHomeToggleLabel(location.pathname, currentUser?.role);
+  const homeTogglePath = getHomeTogglePath(
+    location.pathname,
+    currentUser?.role,
+  );
+  const homeToggleLabel = getHomeToggleLabel(
+    location.pathname,
+    currentUser?.role,
+  );
   const [courseSlugByTitle, setCourseSlugByTitle] = useState({});
 
   const notificationCenter = useNotificationCenter({ autoOpenLimit: 8 });
@@ -143,7 +146,10 @@ function SiteHeaderPublicActions({ onNavigate }) {
           >
             <Home size={HEADER_TOOLBAR_ICON_SIZE} aria-hidden />
           </HeaderToolbarButton>
-          <div className="relative shrink-0" ref={notificationCenter.containerRef}>
+          <div
+            className="relative shrink-0"
+            ref={notificationCenter.containerRef}
+          >
             <NotificationBell
               unreadCount={notificationCenter.unreadCount}
               onClick={notificationCenter.onToggle}
@@ -200,7 +206,7 @@ export default function SiteHeader({ mode = "public", role = "admin" }) {
     isPublic &&
     Boolean(
       settings?.announcement_enabled &&
-        String(settings?.announcement_text || "").trim(),
+      String(settings?.announcement_text || "").trim(),
     );
 
   const closeMobile = () => setMobileOpen(false);
@@ -239,7 +245,9 @@ export default function SiteHeader({ mode = "public", role = "admin" }) {
           className={cn(
             "absolute inset-y-0 left-0 z-[2] flex items-center min-w-0",
             isPublic && HEADER_PAD_L,
-            isPublic ? "max-w-[min(42vw,17.5rem)]" : cn(
+            isPublic
+              ? "max-w-[min(42vw,17.5rem)]"
+              : cn(
                   "border-r border-border/60 transition-[width] duration-300 ease-out",
                   sidebarCollapsed ? "w-[68px]" : "w-64",
                 ),
@@ -266,15 +274,16 @@ export default function SiteHeader({ mode = "public", role = "admin" }) {
               HEADER_PAD_R,
             )}
           >
-            {isPublic ? (
-              <SiteHeaderPublicActions />
-            ) : (
-              <AdminHeaderActions />
-            )}
+            {isPublic ? <SiteHeaderPublicActions /> : <AdminHeaderActions />}
           </div>
 
           {isPublic ? (
-            <div className={cn("md:hidden flex items-center gap-2 shrink-0", HEADER_PAD_R)}>
+            <div
+              className={cn(
+                "md:hidden flex items-center gap-2 shrink-0",
+                HEADER_PAD_R,
+              )}
+            >
               <ThemeToggle />
               {authService.getCurrentUser() ? (
                 <UserAccountMenu className="shrink-0 [&_button]:pl-1.5 [&_button]:pr-1 [&_button]:gap-1.5" />
@@ -306,7 +315,12 @@ export default function SiteHeader({ mode = "public", role = "admin" }) {
               exit={{ opacity: 0, height: 0 }}
               className="md:hidden overflow-hidden border-t border-border"
             >
-              <div className={cn("mx-auto w-full max-w-[1400px] py-4 space-y-2", HEADER_PAD_X)}>
+              <div
+                className={cn(
+                  "mx-auto w-full max-w-[1400px] py-4 space-y-2",
+                  HEADER_PAD_X,
+                )}
+              >
                 <PublicMainNav variant="mobile" onNavigate={closeMobile} />
                 <SiteHeaderMobileAccount
                   onNavigate={closeMobile}
@@ -328,8 +342,14 @@ function SiteHeaderMobileAccount({ onNavigate, onLogout }) {
   const location = useLocation();
   const currentUser = authService.getCurrentUser();
   const notificationsPath = getRoleNotificationPath(currentUser?.role);
-  const homeTogglePath = getHomeTogglePath(location.pathname, currentUser?.role);
-  const homeToggleLabel = getHomeToggleLabel(location.pathname, currentUser?.role);
+  const homeTogglePath = getHomeTogglePath(
+    location.pathname,
+    currentUser?.role,
+  );
+  const homeToggleLabel = getHomeToggleLabel(
+    location.pathname,
+    currentUser?.role,
+  );
   const notificationCenter = useNotificationCenter({ autoOpenLimit: 8 });
 
   if (!currentUser) {
