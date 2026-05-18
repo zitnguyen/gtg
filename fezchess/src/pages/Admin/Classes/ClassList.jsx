@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Search, Calendar, Clock, Users, Edit, Trash2, BookOpen, User, RotateCw, Filter, ChevronLeft, ChevronRight, CheckCircle2 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import classService from '../../../services/classService';
 import TableSkeleton from '../../../components/ui/TableSkeleton';
 import useUndoDelete from '../../../hooks/useUndoDelete';
+import { useTheme } from '../../../context/ThemeContext';
 
 const ClassList = () => {
     const navigate = useNavigate();
@@ -21,6 +22,8 @@ const ClassList = () => {
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [highlightedRowId, setHighlightedRowId] = useState(null);
     const { scheduleUndoDelete } = useUndoDelete();
+    const { isDark } = useTheme();
+    const lastToastKeyRef = useRef('');
 
     useEffect(() => {
         fetchClasses();
@@ -33,11 +36,18 @@ const ClassList = () => {
     useEffect(() => {
         const updatedId = location.state?.updatedClassId;
         if (!updatedId) return;
+        const toastKey = `class-updated-${updatedId}-${location.state?.updatedAt || ''}`;
+        if (lastToastKeyRef.current === toastKey) return;
+        lastToastKeyRef.current = toastKey;
         setHighlightedRowId(updatedId);
-        toast.success('✔ Cập nhật thành công', { icon: <CheckCircle2 size={16} /> });
+        toast.success('✔ Cập nhật thành công', {
+            id: toastKey,
+            icon: <CheckCircle2 size={16} />,
+        });
+        navigate(location.pathname, { replace: true, state: {} });
         const timeout = setTimeout(() => setHighlightedRowId(null), 2500);
         return () => clearTimeout(timeout);
-    }, [location.state?.updatedClassId, location.state?.updatedAt]);
+    }, [location.state?.updatedClassId, location.state?.updatedAt, location.pathname, navigate]);
 
     const fetchClasses = async () => {
         try {
@@ -202,7 +212,7 @@ const ClassList = () => {
                         <th scope="col" className="relative px-6 py-4"><span className="sr-only">Hành động</span></th>
                     </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-background divide-y divide-border">
                     {currentItems.map((cls, index) => (
                         <motion.tr
                             key={cls._id || cls.id}
@@ -211,7 +221,13 @@ const ClassList = () => {
                                 opacity: 1,
                                 scale: 1,
                                 backgroundColor:
-                                    highlightedRowId === cls._id ? "rgb(240 253 244)" : "rgb(255 255 255)",
+                                    highlightedRowId === cls._id
+                                        ? isDark
+                                            ? "rgb(6 46 26)"
+                                            : "rgb(240 253 244)"
+                                        : isDark
+                                            ? "rgb(0 0 0)"
+                                            : "rgb(255 255 255)",
                             }}
                             transition={{ duration: 0.28, ease: "easeOut" }}
                             className="hover:bg-gray-50 transition-colors group"

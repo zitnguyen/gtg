@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Download, Search, ChevronDown, ChevronLeft, ChevronRight, Edit, Trash2, RotateCw, User, Mail, Phone, Award, Briefcase, GraduationCap, CheckCircle2 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import teacherService from '../../../services/teacherService';
 import TableSkeleton from '../../../components/ui/TableSkeleton';
 import useUndoDelete from '../../../hooks/useUndoDelete';
+import { useTheme } from '../../../context/ThemeContext';
 
 const TeacherList = () => {
     const navigate = useNavigate();
@@ -22,6 +23,8 @@ const TeacherList = () => {
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [highlightedRowId, setHighlightedRowId] = useState(null);
     const { scheduleUndoDelete } = useUndoDelete();
+    const { isDark } = useTheme();
+    const lastToastKeyRef = useRef('');
 
     // Fetch teachers when component mounts or when returning to this page
     useEffect(() => {
@@ -36,11 +39,18 @@ const TeacherList = () => {
     useEffect(() => {
         const updatedId = location.state?.updatedTeacher?._id || location.state?.updatedTeacherId;
         if (!updatedId) return;
+        const toastKey = `teacher-updated-${updatedId}-${location.state?.updatedAt || ''}`;
+        if (lastToastKeyRef.current === toastKey) return;
+        lastToastKeyRef.current = toastKey;
         setHighlightedRowId(updatedId);
-        toast.success('✔ Cập nhật thành công', { icon: <CheckCircle2 size={16} /> });
+        toast.success('✔ Cập nhật thành công', {
+            id: toastKey,
+            icon: <CheckCircle2 size={16} />,
+        });
+        navigate(location.pathname, { replace: true, state: {} });
         const timeout = setTimeout(() => setHighlightedRowId(null), 2500);
         return () => clearTimeout(timeout);
-    }, [location.state?.updatedTeacher?._id, location.state?.updatedTeacherId, location.state?.updatedAt]);
+    }, [location.state?.updatedTeacher?._id, location.state?.updatedTeacherId, location.state?.updatedAt, location.pathname, navigate]);
 
     const fetchTeachers = async () => {
         try {
@@ -230,7 +240,7 @@ const TeacherList = () => {
                         <th scope="col" className="relative px-6 py-4"><span className="sr-only">Hành động</span></th>
                     </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-background divide-y divide-border">
                     {currentItems.map((teacher, index) => (
                         <motion.tr
                             key={teacher._id || teacher.id}
@@ -239,7 +249,9 @@ const TeacherList = () => {
                                 opacity: 1,
                                 scale: 1,
                                 backgroundColor:
-                                    highlightedRowId === teacher._id ? "rgb(240 253 244)" : "rgb(255 255 255)",
+                                    highlightedRowId === teacher._id
+                                        ? (isDark ? "rgb(6 46 26)" : "rgb(240 253 244)")
+                                        : (isDark ? "rgb(0 0 0)" : "rgb(255 255 255)"),
                             }}
                             transition={{ duration: 0.28, ease: "easeOut" }}
                             className="hover:bg-gray-50 transition-colors group"

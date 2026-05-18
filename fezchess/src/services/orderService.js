@@ -4,6 +4,9 @@ const orderService = {
   create: (data) => {
     return axiosClient.post("/orders", data);
   },
+  getById: (id) => {
+    return axiosClient.get(`/orders/${id}`);
+  },
   getMyOrders: () => {
     return axiosClient.get("/orders/my-orders");
   },
@@ -12,6 +15,9 @@ const orderService = {
   },
   updateStatus: (id, status) => {
     return axiosClient.put(`/orders/${id}/pay`, { status });
+  },
+  refund: (id, payload = {}) => {
+    return axiosClient.post(`/orders/${id}/refund`, payload);
   },
 };
 

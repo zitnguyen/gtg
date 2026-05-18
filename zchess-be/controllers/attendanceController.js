@@ -85,10 +85,23 @@ exports.listAttendance = asyncHandler(async (req, res) => {
   res.json(attendance);
 });
 
+const ALLOWED_STATUSES = new Set([
+  "present",
+  "absent",
+  "excused",
+  "late",
+  "makeup",
+]);
+const COUNTS_AS_PRESENT = new Set(["present", "late", "makeup"]);
+
 exports.markAttendance = asyncHandler(async (req, res) => {
-  const { classId, studentId, date, status, note } = req.body;
+  const { classId, studentId, date, status, note, isMakeup, originalDate } =
+    req.body;
   if (!classId || !studentId || !date || !status) {
     return res.status(400).json({ message: "Thiếu dữ liệu điểm danh bắt buộc" });
+  }
+  if (!ALLOWED_STATUSES.has(status)) {
+    return res.status(400).json({ message: `Trạng thái không hợp lệ: ${status}` });
   }
   const canAccess = await ensureTeacherOwnsClass(classId, req.user);
   if (!canAccess) {
@@ -103,9 +116,16 @@ exports.markAttendance = asyncHandler(async (req, res) => {
     return res.status(404).json({ message: "Học viên không tồn tại" });
   }
 
-  const classDoc = await Class.findById(classId).select("studentIds scheduleSlots schedule");
+  const classDoc = await Class.findById(classId).select(
+    "studentIds scheduleSlots schedule status",
+  );
   if (!classDoc) {
     return res.status(404).json({ message: "Lớp học không tồn tại" });
+  }
+  if (classDoc.status === "Cancelled" || classDoc.status === "Finished") {
+    return res.status(400).json({
+      message: `Lớp đang ở trạng thái ${classDoc.status}, không thể điểm danh.`,
+    });
   }
   const studentInClass = (classDoc.studentIds || []).some(
     (id) => String(id) === String(studentId),
@@ -113,62 +133,80 @@ exports.markAttendance = asyncHandler(async (req, res) => {
   if (!studentInClass) {
     return res.status(400).json({ message: "Học viên không thuộc lớp học này" });
   }
-  const hasSchedule = hasClassScheduleOnDate(classDoc, date);
-  if (!hasSchedule) {
-    return res
-      .status(400)
-      .json({ message: "Học viên không có lịch học trong ngày được chọn" });
+  // Buổi makeup không cần thuộc scheduleSlots gốc — bỏ qua kiểm tra lịch.
+  if (status !== "makeup" && !isMakeup) {
+    const hasSchedule = hasClassScheduleOnDate(classDoc, date);
+    if (!hasSchedule) {
+      return res
+        .status(400)
+        .json({ message: "Học viên không có lịch học trong ngày được chọn" });
+    }
   }
 
   const anchor = parseDayAnchor(date);
-  const { start, end } = dayRange(date);
+  const idempotencyKey =
+    typeof req.headers["idempotency-key"] === "string" &&
+    req.headers["idempotency-key"].trim().length > 0 &&
+    req.headers["idempotency-key"].trim().length <= 80
+      ? req.headers["idempotency-key"].trim()
+      : null;
 
-  let attendance = await Attendance.findOne({
-    classId,
-    studentId,
-    date: { $gte: start, $lte: end },
-  });
-
-  if (attendance) {
-    const prevStatus = attendance.status;
-    attendance.status = status;
-    attendance.note = note;
-    attendance.date = anchor;
-    await attendance.save();
-
-    if (prevStatus !== status) {
-      if (status === "present") {
-        await Student.findByIdAndUpdate(studentId, {
-          $inc: { totalSessions: 1, completedLessons: 1 },
-        });
-      } else if (prevStatus === "present" && status === "absent") {
-        const studentDoc = await Student.findById(studentId).select(
-          "totalSessions completedLessons",
-        );
-        if (studentDoc) {
-          studentDoc.totalSessions = Math.max((studentDoc.totalSessions || 0) - 1, 0);
-          studentDoc.completedLessons = Math.max(
-            (studentDoc.completedLessons || 0) - 1,
-            0,
-          );
-          await studentDoc.save();
-        }
-      }
+  if (idempotencyKey) {
+    const existingByKey = await Attendance.findOne({ idempotencyKey });
+    if (existingByKey) {
+      return res.status(200).json(existingByKey);
     }
-  } else {
-    attendance = new Attendance({
-      classId,
-      studentId,
-      date: anchor,
-      status,
-      note,
+  }
+
+  // Atomic upsert theo (classId, studentId, date-anchor).
+  let attendance = await Attendance.findOneAndUpdate(
+    { classId, studentId, date: anchor },
+    {
+      $setOnInsert: {
+        classId,
+        studentId,
+        date: anchor,
+        markedBy: req.user?._id,
+        idempotencyKey: idempotencyKey || undefined,
+      },
+    },
+    { upsert: true, new: true },
+  );
+
+  const prevStatus = attendance.status || "absent";
+  // Cập nhật fields còn lại (không $setOnInsert)
+  attendance.status = status;
+  attendance.note = note;
+  attendance.isMakeup = Boolean(isMakeup) || status === "makeup";
+  attendance.originalDate = originalDate ? new Date(originalDate) : null;
+  attendance.markedBy = req.user?._id;
+  await attendance.save();
+
+  // Đồng bộ counter Student dựa theo dịch chuyển present-equivalence.
+  const wasPresent = COUNTS_AS_PRESENT.has(prevStatus);
+  const isPresent = COUNTS_AS_PRESENT.has(status);
+  if (!wasPresent && isPresent) {
+    await Student.findByIdAndUpdate(studentId, {
+      $inc: { totalSessions: 1, completedLessons: 1 },
+      $set: { lastActiveAt: new Date(), lifecycleStatus: "active" },
     });
-    await attendance.save();
-    if (status === "present") {
-      await Student.findByIdAndUpdate(studentId, {
-        $inc: { totalSessions: 1, completedLessons: 1 },
-      });
+  } else if (wasPresent && !isPresent) {
+    const studentDoc = await Student.findById(studentId).select(
+      "totalSessions completedLessons",
+    );
+    if (studentDoc) {
+      studentDoc.totalSessions = Math.max((studentDoc.totalSessions || 0) - 1, 0);
+      studentDoc.completedLessons = Math.max(
+        (studentDoc.completedLessons || 0) - 1,
+        0,
+      );
+      await studentDoc.save();
     }
+  } else if (isPresent) {
+    // Đánh dấu lại lastActiveAt khi điểm danh có mặt.
+    await Student.findByIdAndUpdate(studentId, {
+      $set: { lastActiveAt: new Date(), lifecycleStatus: "active" },
+    });
   }
 
   res.status(201).json(attendance);

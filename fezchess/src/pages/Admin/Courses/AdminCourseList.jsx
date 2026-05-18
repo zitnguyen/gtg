@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axiosClient from '../../../api/axiosClient';
+import courseService from '../../../services/courseService';
 import { Plus, Edit, Trash2, Search, BookOpen, User, DollarSign } from 'lucide-react';
 
 const AdminCourseList = () => {
@@ -41,7 +42,7 @@ const AdminCourseList = () => {
     const handleDelete = async (id) => {
         if (window.confirm("Bạn có chắc chắn muốn xóa khóa học này? Hành động này không thể hoàn tác.")) {
             try {
-                await axiosClient.delete(`/courses/${id}`);
+                await courseService.deleteCourse(id);
                 setCourses(courses.filter(course => course._id !== id));
             } catch (error) {
                 console.error("Error deleting course:", error);

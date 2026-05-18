@@ -1,0 +1,193 @@
+/**
+ * Z CHESS — Design tokens (light mặc định, dark qua class .dark)
+ */
+
+:root {
+  --z-bg: #f8fafc;
+  --z-s1: #ffffff;
+  --z-s2: #f1f5f9;
+  --z-s3: #e2e8f0;
+
+  --z-border: rgba(15, 23, 42, 0.06);
+  --z-border-mid: rgba(15, 23, 42, 0.1);
+  --z-border-strong: rgba(15, 23, 42, 0.16);
+
+  --z-gold: #b45309;
+  --z-gold-dim: rgba(180, 83, 9, 0.1);
+  --z-teal: #0d9488;
+  --z-teal-dim: rgba(13, 148, 136, 0.1);
+  --z-purple: #6366f1;
+  --z-purple-dim: rgba(99, 102, 241, 0.1);
+  --z-green: #16a34a;
+  --z-green-dim: rgba(22, 163, 74, 0.1);
+  --z-red: #dc2626;
+  --z-red-dim: rgba(220, 38, 38, 0.1);
+
+  --z-t1: #0f172a;
+  --z-t2: #475569;
+  --z-t3: #94a3b8;
+  --z-t4: #cbd5e1;
+
+  --z-font: "Sora", system-ui, sans-serif;
+  --z-mono: "DM Mono", ui-monospace, monospace;
+
+  --z-accent: #2563eb;
+  --z-accent-dim: rgba(37, 99, 235, 0.1);
+
+  --background: 210 40% 98%;
+  --foreground: 222 47% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+  --primary: 221.2 83.2% 53.3%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 210 40% 96%;
+  --secondary-foreground: 222 47% 11%;
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 16% 47%;
+  --accent: 210 40% 96%;
+  --accent-foreground: 222 47% 11%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 214 32% 91%;
+  --input: 214 32% 91%;
+  --ring: 221.2 83.2% 53.3%;
+  --radius: 0.5rem;
+
+  --color-bg: var(--z-bg);
+  --color-surface: var(--z-s1);
+  --color-text: var(--z-t1);
+  --color-icon: var(--z-t1);
+  --color-border: var(--z-border-mid);
+  --color-hover: var(--z-s2);
+
+  --bg-main: var(--z-bg);
+  --bg-surface: var(--z-s1);
+  --text-primary: var(--z-t1);
+  --text-secondary: var(--z-t2);
+
+  color-scheme: light;
+}
+
+html.dark,
+html[data-theme="dark"] {
+  --z-bg: #0f172a;
+  --z-s1: #1e293b;
+  --z-s2: #334155;
+  --z-s3: #475569;
+
+  --z-border: rgba(255, 255, 255, 0.06);
+  --z-border-mid: rgba(255, 255, 255, 0.11);
+  --z-border-strong: rgba(255, 255, 255, 0.18);
+
+  --z-gold: #e8b84b;
+  --z-gold-dim: rgba(232, 184, 75, 0.12);
+  --z-teal: #2dd4bf;
+  --z-teal-dim: rgba(45, 212, 191, 0.12);
+  --z-purple: #818cf8;
+  --z-purple-dim: rgba(129, 140, 248, 0.12);
+  --z-green: #4ade80;
+  --z-green-dim: rgba(74, 222, 128, 0.12);
+  --z-red: #f87171;
+  --z-red-dim: rgba(248, 113, 113, 0.12);
+
+  --z-t1: #f1f5f9;
+  --z-t2: #94a3b8;
+  --z-t3: #64748b;
+  --z-t4: #475569;
+
+  --background: 222 47% 11%;
+  --foreground: 210 40% 98%;
+  --card: 217 33% 17%;
+  --card-foreground: 210 40% 98%;
+  --popover: 217 33% 17%;
+  --popover-foreground: 210 40% 98%;
+  --primary: 217.2 91.2% 59.8%;
+  --primary-foreground: 222 47% 11%;
+  --secondary: 217 33% 17%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 217 33% 17%;
+  --muted-foreground: 215 20% 65%;
+  --accent: 217 33% 17%;
+  --accent-foreground: 210 40% 98%;
+  --destructive: 0 62.8% 50%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 217 33% 22%;
+  --input: 217 33% 22%;
+  --ring: 224.3 76.3% 48%;
+
+  color-scheme: dark;
+}
+
+[data-portal="admin"] {
+  --z-accent: var(--z-gold);
+  --z-accent-dim: var(--z-gold-dim);
+}
+
+[data-portal="teacher"] {
+  --z-accent: var(--z-teal);
+  --z-accent-dim: var(--z-teal-dim);
+}
+
+[data-portal="parent"] {
+  --z-accent: var(--z-purple);
+  --z-accent-dim: var(--z-purple-dim);
+}
+
+[data-portal="student"] {
+  --z-accent: var(--z-green);
+  --z-accent-dim: var(--z-green-dim);
+}
+
+html {
+  font-family: var(--z-font);
+}
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: var(--z-font);
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  min-height: 100dvh;
+  background-color: hsl(var(--background));
+}
+
+.z-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--z-s3) transparent;
+}
+
+.z-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.z-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--z-s3);
+  border-radius: 99px;
+}
+
+.z-chess-pattern {
+  background-image: conic-gradient(
+    from 90deg at 50% 50%,
+    rgba(15, 23, 42, 0.04) 0deg 90deg,
+    transparent 90deg 180deg,
+    rgba(15, 23, 42, 0.04) 180deg 270deg,
+    transparent 270deg 360deg
+  );
+  background-size: 24px 24px;
+}
+
+html.dark .z-chess-pattern {
+  background-image: conic-gradient(
+    from 90deg at 50% 50%,
+    rgba(255, 255, 255, 0.03) 0deg 90deg,
+    transparent 90deg 180deg,
+    rgba(255, 255, 255, 0.03) 180deg 270deg,
+    transparent 270deg 360deg
+  );
+}

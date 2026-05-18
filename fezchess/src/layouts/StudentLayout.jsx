@@ -1,29 +1,8 @@
-import React from 'react';
-import { useLocation } from "react-router-dom";
-import StudentSidebar from '../components/layout/Sidebar/StudentSidebar';
-import AdminHeader from '../components/layout/AdminHeader';
-import AnnouncementBar from '../components/common/AnnouncementBar';
+import React from "react";
+import AppShell from "./navigation/shell/AppShell";
 
-const StudentLayout = ({ children }) => {
-  const location = useLocation();
-  const contentRef = React.useRef(null);
-
-  React.useEffect(() => {
-    contentRef.current?.scrollTo({ top: 0, behavior: "auto" });
-  }, [location.pathname]);
-
-  return (
-    <div className="flex min-h-screen bg-gray-50 dark:bg-slate-950">
-      <StudentSidebar />
-      <div className="flex-1 min-w-0 flex flex-col max-w-full">
-        <AdminHeader />
-        <AnnouncementBar />
-        <main ref={contentRef} className="flex-1 p-6 overflow-y-auto">
-          {children}
-        </main>
-      </div>
-    </div>
-  );
-};
+const StudentLayout = ({ children }) => (
+  <AppShell role="student">{children}</AppShell>
+);
 
 export default StudentLayout;

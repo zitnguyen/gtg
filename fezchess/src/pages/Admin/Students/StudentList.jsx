@@ -1,8 +1,16 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Edit, Eye, Plus, Trash2 } from "lucide-react";
+import { Edit, Eye, Plus, RotateCcw, Trash2, Users } from "lucide-react";
 import { toast } from "sonner";
-import TableSkeleton from "../../../components/ui/TableSkeleton";
+import {
+  Badge,
+  Button,
+  Card,
+  ConfirmDialog,
+  EmptyState,
+  PageHeader,
+  TableSkeleton,
+} from "../../../components/ui";
 import studentService from "../../../services/studentService";
 import authService from "../../../services/authService";
 import useUndoDelete from "../../../hooks/useUndoDelete";
@@ -27,26 +35,26 @@ const FALLBACK_FILTER_FIELDS = [
     options: [
       { value: "all", label: "Tất cả trạng thái" },
       { value: "active", label: "Đang học" },
+      { value: "inactive", label: "Không hoạt động" },
       { value: "completed", label: "Hoàn thành" },
+      { value: "archived", label: "Đã lưu trữ" },
     ],
   },
 ];
 
 const getStudentStatus = (student) => {
+  if (student?.isDeleted || student?.lifecycleStatus === "archived") {
+    return { value: "archived", label: "Đã lưu trữ", tone: "neutral" };
+  }
+  if (student?.lifecycleStatus === "inactive") {
+    return { value: "inactive", label: "Không hoạt động", tone: "warning" };
+  }
   const total = Number(student?.totalLessons ?? student?.totalSessions ?? 0);
   const completed = Number(student?.completedLessons ?? 0);
   if (total > 0 && completed >= total) {
-    return {
-      value: "completed",
-      label: "Hoàn thành",
-      className: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    };
+    return { value: "completed", label: "Hoàn thành", tone: "success" };
   }
-  return {
-    value: "active",
-    label: "Đang học",
-    className: "bg-blue-50 text-blue-700 border-blue-200",
-  };
+  return { value: "active", label: "Đang học", tone: "info" };
 };
 
 const getStudentProgress = (student) => {
@@ -70,6 +78,7 @@ const StudentList = () => {
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
   const [highlightedRowId, setHighlightedRowId] = useState(null);
   const { scheduleUndoDelete } = useUndoDelete();
+  const lastToastKeyRef = useRef("");
 
   useEffect(() => {
     if (!isAdmin) {
@@ -81,7 +90,7 @@ const StudentList = () => {
       try {
         setLoading(true);
         const [data, metadata] = await Promise.all([
-          studentService.getAll(),
+          studentService.getAll({ includeDeleted: true }),
           formMetadataService.getFormConfig("student", "filter"),
         ]);
         if (!mounted) return;
@@ -108,17 +117,25 @@ const StudentList = () => {
   useEffect(() => {
     const updatedId = location.state?.updatedStudentId || location.state?.updatedStudent?._id;
     if (!updatedId) return;
+    const toastKey = `student-updated-${updatedId}-${location.state?.updatedAt || ""}`;
+    if (lastToastKeyRef.current === toastKey) return;
+    lastToastKeyRef.current = toastKey;
     setHighlightedRowId(updatedId);
-    toast.success("✔ Cập nhật thành công");
+    toast.success("✔ Cập nhật thành công", { id: toastKey });
+    navigate(location.pathname, { replace: true, state: {} });
     const timeout = setTimeout(() => setHighlightedRowId(null), 2000);
     return () => clearTimeout(timeout);
-  }, [location.state?.updatedAt, location.state?.updatedStudentId, location.state?.updatedStudent?._id]);
+  }, [location.state?.updatedAt, location.state?.updatedStudentId, location.state?.updatedStudent?._id, location.pathname, navigate]);
 
   useEffect(() => {
     if (location.state?.createdAt) {
-      toast.success("✔ Tạo thành công");
+      const toastKey = `student-created-${location.state.createdAt}`;
+      if (lastToastKeyRef.current === toastKey) return;
+      lastToastKeyRef.current = toastKey;
+      toast.success("✔ Tạo thành công", { id: toastKey });
+      navigate(location.pathname, { replace: true, state: {} });
     }
-  }, [location.state?.createdAt]);
+  }, [location.state?.createdAt, location.pathname, navigate]);
 
   const filteredStudents = useMemo(() => {
       const term = String(filters.keyword || "")
@@ -147,7 +164,8 @@ const StudentList = () => {
     scheduleUndoDelete({
       id: studentId,
       item: deletingStudent,
-      removeOptimistic: () => setStudents((prev) => prev.filter((item) => item._id !== studentId)),
+      removeOptimistic: () =>
+        setStudents((prev) => prev.filter((item) => item._id !== studentId)),
       restoreOptimistic: (item) => setStudents((prev) => [item, ...prev]),
       commitDelete: () => studentService.delete(studentId),
       successMessage: "✔ Xóa thành công",
@@ -156,11 +174,28 @@ const StudentList = () => {
     });
   };
 
+  const handleRestore = async (studentId) => {
+    try {
+      const restored = await studentService.restore(studentId);
+      setStudents((prev) =>
+        prev.map((item) => (item._id === studentId ? { ...item, ...restored } : item)),
+      );
+      toast.success("Đã khôi phục học viên");
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Không thể khôi phục học viên");
+    }
+  };
+
+  const studentToDelete = useMemo(
+    () => students.find((item) => item._id === deleteConfirmId),
+    [students, deleteConfirmId],
+  );
+
   if (!isAdmin) {
     return (
       <div className="p-6">
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          403 - Bạn không có quyền truy cập chức năng quản lý học viên.
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          403 — Bạn không có quyền truy cập chức năng quản lý học viên.
         </div>
       </div>
     );
@@ -168,55 +203,84 @@ const StudentList = () => {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Quản lý học viên</h1>
-          <p className="text-sm text-gray-500 mt-1">Danh sách và thao tác CRUD học viên dành cho Admin.</p>
-        </div>
-        <button
-          type="button"
-          onClick={() => navigate("/admin/students/create")}
-          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary/90"
-        >
-          <Plus size={16} />
-          Tạo học viên
-        </button>
-      </div>
+      <PageHeader
+        title="Quản lý học viên"
+        description="Danh sách và thao tác CRUD học viên dành cho Admin."
+        meta={
+          loading ? null : (
+            <Badge tone="neutral" size="sm">
+              {students.length} học viên
+            </Badge>
+          )
+        }
+        actions={
+          <Button
+            onClick={() => navigate("/admin/students/create")}
+            leftIcon={<Plus size={16} />}
+          >
+            Tạo học viên
+          </Button>
+        }
+      />
 
-      <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm flex flex-col md:flex-row gap-3">
-        <div className="flex-1">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <DynamicFormFields
-              fields={filterConfig}
-              values={filters}
-              errors={{}}
-              onChange={handleFilterChange}
-            />
-          </div>
+      <Card padded={false} className="p-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <DynamicFormFields
+            fields={filterConfig}
+            values={filters}
+            errors={{}}
+            onChange={handleFilterChange}
+          />
         </div>
-      </div>
+      </Card>
 
-      <div className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
+      <Card padded={false} className="overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <table className="min-w-full divide-y divide-border">
+            <thead className="bg-muted/40">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Họ tên</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Ngày sinh</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">SĐT</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Parent</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Tiến độ</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Trạng thái</th>
-                <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Thao tác</th>
+                <th className="px-6 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Họ tên
+                </th>
+                <th className="px-6 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Ngày sinh
+                </th>
+                <th className="px-6 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  SĐT
+                </th>
+                <th className="px-6 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Phụ huynh
+                </th>
+                <th className="px-6 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Tiến độ
+                </th>
+                <th className="px-6 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Trạng thái
+                </th>
+                <th className="px-6 py-3.5 text-right text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Thao tác
+                </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100 bg-white">
+            <tbody className="divide-y divide-border bg-card">
               {loading ? (
                 <TableSkeleton rows={6} cols={7} />
               ) : filteredStudents.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-sm text-gray-500">
-                    Không có học viên phù hợp bộ lọc.
+                  <td colSpan={7} className="p-0">
+                    <EmptyState
+                      icon={<Users className="w-7 h-7" />}
+                      title="Không có học viên phù hợp"
+                      description="Thử bỏ lọc, hoặc tạo học viên mới để bắt đầu."
+                      action={
+                        <Button
+                          leftIcon={<Plus size={16} />}
+                          onClick={() => navigate("/admin/students/create")}
+                        >
+                          Tạo học viên
+                        </Button>
+                      }
+                    />
                   </td>
                 </tr>
               ) : (
@@ -226,72 +290,81 @@ const StudentList = () => {
                   return (
                     <tr
                       key={student._id}
-                      className={`transition-colors ${highlightedRowId === student._id ? "bg-emerald-50" : "hover:bg-gray-50"}`}
+                      className={`transition-colors ${
+                        highlightedRowId === student._id
+                          ? "bg-emerald-50/70"
+                          : "hover:bg-muted/40"
+                      }`}
                     >
-                      <td className="px-6 py-4 text-sm font-semibold text-gray-900">{student.fullName || "N/A"}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
-                        {student.dateOfBirth ? new Date(student.dateOfBirth).toLocaleDateString("vi-VN") : "-"}
+                      <td className="px-6 py-3.5 text-sm font-medium text-foreground">
+                        {student.fullName || "N/A"}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{student.parentId?.phone || "-"}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{student.parentId?.fullName || "-"}</td>
-                      <td className="px-6 py-4 text-sm text-gray-700">
+                      <td className="px-6 py-3.5 text-sm text-muted-foreground">
+                        {student.dateOfBirth
+                          ? new Date(student.dateOfBirth).toLocaleDateString("vi-VN")
+                          : "-"}
+                      </td>
+                      <td className="px-6 py-3.5 text-sm text-muted-foreground">
+                        {student.parentId?.phone || "-"}
+                      </td>
+                      <td className="px-6 py-3.5 text-sm text-muted-foreground">
+                        {student.parentId?.fullName || "-"}
+                      </td>
+                      <td className="px-6 py-3.5 text-sm text-foreground/90 tabular-nums">
                         <span className="font-semibold">{progress.studied}</span>
-                        <span className="text-gray-500"> / {progress.total} buổi</span>
+                        <span className="text-muted-foreground"> / {progress.total} buổi</span>
                       </td>
-                      <td className="px-6 py-4">
-                        <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${status.className}`}>
+                      <td className="px-6 py-3.5">
+                        <Badge tone={status.tone} size="sm" dot>
                           {status.label}
-                        </span>
+                        </Badge>
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="flex justify-end items-center gap-2">
-                          <button
-                            type="button"
+                      <td className="px-6 py-3.5">
+                        <div className="flex justify-end items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
                             onClick={() => navigate(`/admin/students/${student._id}`)}
-                            className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                            aria-label="Chi tiết"
                             title="Chi tiết"
                           >
                             <Eye size={16} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => navigate(`/admin/students/${student._id}/edit`)}
-                            className="rounded-lg p-2 text-blue-600 hover:bg-blue-50"
-                            title="Sửa"
-                          >
-                            <Edit size={16} />
-                          </button>
-                          <div className="relative">
-                            <button
-                              type="button"
-                              onClick={() => setDeleteConfirmId(student._id)}
-                              className="rounded-lg p-2 text-red-600 hover:bg-red-50"
-                              title="Xóa"
+                          </Button>
+                          {student.isDeleted ? (
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              onClick={() => handleRestore(student._id)}
+                              aria-label="Khôi phục"
+                              title="Khôi phục"
+                              className="text-emerald-600 hover:bg-emerald-50"
                             >
-                              <Trash2 size={16} />
-                            </button>
-                            {deleteConfirmId === student._id && (
-                              <div className="absolute right-0 top-10 z-10 w-52 rounded-lg border border-gray-200 bg-white p-3 shadow-lg">
-                                <p className="text-xs text-gray-700 mb-3">Bạn có chắc muốn xóa?</p>
-                                <div className="flex justify-end gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => setDeleteConfirmId(null)}
-                                    className="rounded-md bg-gray-100 px-2.5 py-1.5 text-xs text-gray-700"
-                                  >
-                                    Hủy
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDelete(student._id)}
-                                    className="rounded-md bg-red-600 px-2.5 py-1.5 text-xs text-white"
-                                  >
-                                    Xóa
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-                          </div>
+                              <RotateCcw size={16} />
+                            </Button>
+                          ) : (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                onClick={() => navigate(`/admin/students/${student._id}/edit`)}
+                                aria-label="Sửa"
+                                title="Sửa"
+                                className="text-blue-600 hover:bg-blue-50"
+                              >
+                                <Edit size={16} />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                onClick={() => setDeleteConfirmId(student._id)}
+                                aria-label="Xoá"
+                                title="Xoá"
+                                className="text-rose-600 hover:bg-rose-50"
+                              >
+                                <Trash2 size={16} />
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -301,7 +374,24 @@ const StudentList = () => {
             </tbody>
           </table>
         </div>
-      </div>
+      </Card>
+
+      <ConfirmDialog
+        open={Boolean(deleteConfirmId)}
+        onOpenChange={(next) => {
+          if (!next) setDeleteConfirmId(null);
+        }}
+        title="Xoá học viên?"
+        description={
+          studentToDelete
+            ? `Bạn sắp xoá "${studentToDelete.fullName || "học viên"}". Có thể hoàn tác trong vài giây.`
+            : "Hành động này có thể hoàn tác."
+        }
+        confirmLabel="Xoá"
+        cancelLabel="Huỷ"
+        destructive
+        onConfirm={() => handleDelete(deleteConfirmId)}
+      />
     </div>
   );
 };

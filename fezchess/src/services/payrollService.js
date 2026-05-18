@@ -31,11 +31,43 @@ const payrollService = {
   createAdminSession: async (payload) => {
     return axiosClient.post("/admin/payroll/session", payload);
   },
+  importPayrollExcel: async (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return axiosClient.post("/admin/payroll/import-excel", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+  },
+  downloadPayrollImportTemplate: async () => {
+    const response = await axiosClient.get("/admin/payroll/import-template", {
+      responseType: "blob",
+    });
+    const contentType =
+      response?.headers?.["content-type"] ||
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    const blob = new Blob([response.data], { type: contentType });
+    const disposition = response?.headers?.["content-disposition"] || "";
+    const filename = getFilenameFromDisposition(
+      disposition,
+      "Payroll_Import_Template.xlsx",
+    );
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  },
   deleteSession: async (sessionId) => {
     return axiosClient.delete(`/admin/payroll/session/${sessionId}`);
   },
   updateSessionSalary: async (sessionId, salary) => {
     return axiosClient.patch(`/admin/payroll/session/${sessionId}/salary`, { salary });
+  },
+  updateSessionCompensation: async (sessionId, payload) => {
+    return axiosClient.patch(`/admin/payroll/session/${sessionId}/compensation`, payload);
   },
   resetSessionSalary: async (sessionId) => {
     return axiosClient.delete(`/admin/payroll/session/${sessionId}/salary`);

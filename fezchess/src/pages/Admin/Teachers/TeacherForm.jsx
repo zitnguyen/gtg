@@ -3,6 +3,12 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, User, Mail, Phone, Lock, Award, Briefcase, GraduationCap, Save, Loader2, ImagePlus } from 'lucide-react';
 import teacherService from '../../../services/teacherService';
 
+const TRAINING_LEVEL_OPTIONS = [
+    { value: 'beginner', label: 'Huấn luyện cơ bản' },
+    { value: 'intermediate', label: 'Huấn luyện trung cấp' },
+    { value: 'advanced', label: 'Huấn luyện nâng cao' },
+];
+
 const TeacherForm = () => {
     const navigate = useNavigate();
     const { id } = useParams();
@@ -22,6 +28,7 @@ const TeacherForm = () => {
         password: '',
         phone: '',
         specialization: '',
+        trainingLevel: '',
         experienceYears: '',
         certification: '',
         avatarUrl: '',
@@ -45,6 +52,7 @@ const TeacherForm = () => {
                 password: '',
                 phone: String(response.phone || ''),
                 specialization: String(response.specialization || ''),
+                trainingLevel: String(response.trainingLevel || ''),
                 experienceYears: response.experienceYears ? String(response.experienceYears) : '',
                 certification: String(response.certification || ''),
                 avatarUrl: String(response.avatarUrl || ''),
@@ -129,6 +137,10 @@ const TeacherForm = () => {
             setError('Vui lòng nhập mật khẩu');
             return;
         }
+        if (!String(formData.trainingLevel || '').trim()) {
+            setError('Vui lòng chọn cấp độ huấn luyện');
+            return;
+        }
 
         try {
             setSubmitting(true);
@@ -139,7 +151,8 @@ const TeacherForm = () => {
                 fullName: formData.fullName?.trim(),
                 phone: formData.phone?.trim(),
                 specialization: formData.specialization?.trim(),
-                certification: formData.certification?.trim()
+                certification: formData.certification?.trim(),
+                trainingLevel: formData.trainingLevel?.trim()
             };
 
             let savedId = id;
@@ -157,7 +170,15 @@ const TeacherForm = () => {
             });
         } catch (err) {
             console.error('Error saving teacher:', err);
-            setError(err.response?.data?.message || 'Lỗi khi lưu dữ liệu: ' + err.message);
+            const apiMessage = err?.apiMessage || err?.response?.data?.message;
+            if (err?.response?.status === 409) {
+                setError(
+                    apiMessage ||
+                        'Thông tin giáo viên bị trùng (email/tên đăng nhập/số điện thoại). Vui lòng kiểm tra lại.',
+                );
+            } else {
+                setError(apiMessage || 'Lỗi khi lưu dữ liệu: ' + err.message);
+            }
         } finally {
             setSubmitting(false);
         }
@@ -346,6 +367,24 @@ const TeacherForm = () => {
                                         className="block w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white transition-all outline-none"
                                     />
                                 </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Cấp độ huấn luyện <span className="text-red-500">*</span></label>
+                                <select
+                                    name="trainingLevel"
+                                    value={formData.trainingLevel}
+                                    onChange={handleChange}
+                                    required
+                                    className="block w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-white transition-all outline-none"
+                                >
+                                    <option value="">Chọn cấp độ huấn luyện</option>
+                                    {TRAINING_LEVEL_OPTIONS.map((option) => (
+                                        <option key={option.value} value={option.value}>
+                                            {option.label}
+                                        </option>
+                                    ))}
+                                </select>
                             </div>
 
                             <div>

@@ -3,7 +3,34 @@ const Expense = require("../models/Expense");
 const Enrollment = require("../models/Enrollment");
 const Student = require("../models/Student");
 const Order = require("../models/Order");
+const FinancialReport = require("../models/FinancialReport");
+const {
+  buildFinanceReport,
+  buildExcelWorkbook,
+} = require("../services/financeReportService");
 const asyncHandler = require("../middleware/asyncHandler");
+
+const persistFinancialReport = async (report, userId) => {
+  const payload = {
+    period: report.period,
+    startDate: report.startDate,
+    endDate: report.endDate,
+    totalRevenue: report.totalRevenue,
+    totalExpense: report.totalExpense,
+    netProfit: report.netProfit,
+    revenueBreakdown: report.revenueBreakdown,
+    expenseBreakdown: report.expenseBreakdown,
+    revenueIds: report.revenueIds,
+    expenseIds: report.expenseIds,
+    generatedBy: userId || null,
+  };
+
+  return FinancialReport.findOneAndUpdate(
+    { "period.year": report.period.year, "period.month": report.period.month },
+    payload,
+    { upsert: true, new: true, setDefaultsOnInsert: true },
+  );
+};
 
 const getMonthRange = (date = new Date()) => {
   const start = new Date(date.getFullYear(), date.getMonth(), 1);
@@ -315,119 +342,40 @@ exports.getTransactions = asyncHandler(async (req, res) => {
   res.json({ success: true, data: all });
 });
 
+exports.getFinanceReport = asyncHandler(async (req, res) => {
+  const { month, year } = req.query;
+  const report = await buildFinanceReport(month, year);
+  const saved = await persistFinancialReport(report, req.user?._id);
+
+  res.json({
+    success: true,
+    data: {
+      ...report,
+      _id: saved?._id,
+      createdAt: saved?.createdAt,
+      updatedAt: saved?.updatedAt,
+    },
+  });
+});
+
 exports.exportFinanceReport = asyncHandler(async (req, res) => {
   const { month, year } = req.query;
+  const report = await buildFinanceReport(month, year);
+  await persistFinancialReport(report, req.user?._id);
 
-  let revenues;
-  let expenses;
-  let enrollments;
-  let completedOrders;
-  let filename = `BaoCaoTaiChinh_${year || "All"}_${month || "Recent"}.csv`;
+  const workbook = await buildExcelWorkbook(report);
+  const buffer = await workbook.xlsx.writeBuffer();
+  const filename = `BaoCaoTaiChinh_${report.period.year}_${String(report.period.month).padStart(2, "0")}.xlsx`;
 
-  if (month && year) {
-    const targetDate = new Date(Number(year), Number(month) - 1, 1);
-    const { start, end } = getMonthRange(targetDate);
-
-    revenues = await Revenue.find({ date: { $gte: start, $lte: end } }).sort({
-      date: -1,
-    });
-    expenses = await Expense.find({ date: { $gte: start, $lte: end } }).sort({
-      date: -1,
-    });
-    enrollments = await Enrollment.find({
-      paymentStatus: "paid",
-      enrollmentDate: { $gte: start, $lte: end },
-    })
-      .populate("studentId", "fullName")
-      .sort({ enrollmentDate: -1 });
-    completedOrders = await Order.find({
-      status: "completed",
-      $or: [
-        { paidAt: { $gte: start, $lte: end } },
-        { paidAt: null, createdAt: { $gte: start, $lte: end } },
-      ],
-    })
-      .populate("userId", "fullName")
-      .populate("items.courseId", "title")
-      .sort({ paidAt: -1, createdAt: -1 });
-  } else {
-    const today = new Date();
-    const { start, end } = getMonthRange(today);
-    revenues = await Revenue.find({ date: { $gte: start, $lte: end } });
-    expenses = await Expense.find({ date: { $gte: start, $lte: end } });
-    enrollments = await Enrollment.find({
-      paymentStatus: "paid",
-      enrollmentDate: { $gte: start, $lte: end },
-    }).populate("studentId", "fullName");
-    completedOrders = await Order.find({
-      status: "completed",
-      $or: [
-        { paidAt: { $gte: start, $lte: end } },
-        { paidAt: null, createdAt: { $gte: start, $lte: end } },
-      ],
-    })
-      .populate("userId", "fullName")
-      .populate("items.courseId", "title");
-    filename = `BaoCaoTaiChinh_Thang${today.getMonth() + 1}_${today.getFullYear()}.csv`;
-  }
-
-  let csvContent = "Mã GD,Nội dung,Mô tả,Loại,Ngày,Số tiền,Trạng thái\n";
-
-  const addToCsv = (id, content, desc, type, date, amount, status) => {
-    const dateStr = new Date(date).toLocaleDateString("vi-VN");
-    const safeContent = `"${(content || "").replace(/"/g, '""')}"`;
-    const safeDesc = `"${(desc || "").replace(/"/g, '""')}"`;
-    csvContent += `${id},${safeContent},${safeDesc},${type},${dateStr},${amount},${status}\n`;
-  };
-
-  revenues.forEach((r) =>
-    addToCsv(
-      `REV-${r.revenueId}`,
-      r.source,
-      r.description,
-      "Thu nhập",
-      r.date,
-      r.amount,
-      "Hoàn thành",
-    ),
+  res.setHeader(
+    "Content-Type",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   );
-  enrollments.forEach((e) =>
-    addToCsv(
-      `ENR-${e.enrollmentId}`,
-      `Thu học phí - ${e.studentId?.fullName}`,
-      "Học phí",
-      "Thu nhập",
-      e.enrollmentDate,
-      e.feeAmount,
-      "Hoàn thành",
-    ),
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename="${filename}"`,
   );
-  completedOrders.forEach((o) =>
-    addToCsv(
-      `ORD-${String(o._id).slice(-6).toUpperCase()}`,
-      `Thu khóa học - ${o.userId?.fullName || "Học viên"}`,
-      o.items?.map((item) => item?.courseId?.title).filter(Boolean).join(", ") || "Khóa học",
-      "Thu nhập",
-      o.paidAt || o.createdAt,
-      o.totalAmount || 0,
-      "Hoàn thành",
-    ),
-  );
-  expenses.forEach((e) =>
-    addToCsv(
-      `EXP-${e.expenseId}`,
-      e.category,
-      e.description,
-      "Chi phí",
-      e.date,
-      e.amount,
-      "Hoàn thành",
-    ),
-  );
-
-  res.setHeader("Content-Type", "text/csv");
-  res.attachment(filename);
-  return res.send(csvContent);
+  return res.send(Buffer.from(buffer));
 });
 
 exports.createTransaction = asyncHandler(async (req, res) => {
@@ -598,8 +546,14 @@ exports.deleteTransaction = asyncHandler(async (req, res) => {
   res.json({ success: true, message: "Xóa thành công" });
 });
 
+/**
+ * payTuition — chấp nhận partial.
+ * body: { enrollmentId, amount?, method?, transactionId?, note? }
+ *   - amount missing → đóng đủ phần còn nợ
+ *   - amount > 0     → đóng đúng số đó (không vượt quá nợ)
+ */
 exports.payTuition = asyncHandler(async (req, res) => {
-  const { enrollmentId } = req.body;
+  const { enrollmentId, amount, method, transactionId, note } = req.body;
 
   const enrollment = await Enrollment.findOne({
     $or: [{ enrollmentId }, { _id: enrollmentId }],
@@ -617,23 +571,51 @@ exports.payTuition = asyncHandler(async (req, res) => {
       .json({ success: false, message: "Học phí đã được thanh toán" });
   }
 
+  const fee = Number(enrollment.feeAmount || 0);
+  const alreadyPaid = Number(enrollment.paidAmount || 0);
+  const remainingDebt = Math.max(fee - alreadyPaid, 0);
+  if (remainingDebt <= 0) {
+    enrollment.paymentStatus = "paid";
+    await enrollment.save();
+    return res.status(400).json({
+      success: false,
+      message: "Học phí đã đủ.",
+    });
+  }
+
+  const requested = Number(amount);
+  const payAmount =
+    Number.isFinite(requested) && requested > 0
+      ? Math.min(requested, remainingDebt)
+      : remainingDebt;
+
+  enrollment.paidAmount = alreadyPaid + payAmount;
+  enrollment.lastPaidAt = new Date();
+  enrollment.paymentHistory.push({
+    amount: payAmount,
+    paidAt: new Date(),
+    method: method || "cash",
+    transactionId: transactionId || "",
+    recordedBy: req.user?._id,
+    note: note || "",
+  });
+  enrollment.recomputePaymentStatus();
+  await enrollment.save();
+
+  // Ghi Revenue tương ứng
   const lastRevenue = await Revenue.findOne().sort({ revenueId: -1 });
   const newRevenueId = lastRevenue ? lastRevenue.revenueId + 1 : 1;
-
   const student = await Student.findById(enrollment.studentId);
   const studentName = student ? student.fullName : "Học viên";
 
   const newRevenue = new Revenue({
     revenueId: newRevenueId,
     source: "Học phí",
-    amount: enrollment.feeAmount || 0,
-    description: `Thu học phí - ${studentName} - Mã GH: ${enrollment.enrollmentId || enrollment._id}`,
+    amount: payAmount,
+    description: `Thu học phí ${enrollment.paymentStatus === "paid" ? "(đủ)" : "(một phần)"} - ${studentName} - Mã GH: ${enrollment.enrollmentId || enrollment._id}`,
     date: new Date(),
   });
   await newRevenue.save();
-
-  enrollment.paymentStatus = "paid";
-  await enrollment.save();
 
   res.json({
     success: true,
@@ -641,6 +623,112 @@ exports.payTuition = asyncHandler(async (req, res) => {
     data: {
       enrollment,
       revenue: newRevenue,
+      payAmount,
+      remainingDebt: Math.max(fee - enrollment.paidAmount, 0),
     },
+  });
+});
+
+/**
+ * getTuitionDebts — báo cáo công nợ học phí theo enrollment.
+ * query: ?ageing=30,60,90&status=overdue|partial|unpaid|all&parentId=...
+ */
+exports.getTuitionDebts = asyncHandler(async (req, res) => {
+  const ageingBuckets = String(req.query.ageing || "30,60,90")
+    .split(",")
+    .map((s) => parseInt(s, 10))
+    .filter((n) => Number.isFinite(n) && n > 0)
+    .sort((a, b) => a - b);
+
+  const status = String(req.query.status || "all").toLowerCase();
+  const filter = {
+    status: { $in: ["Active", "Reserved"] },
+    paymentStatus: { $in: ["unpaid", "partial"] },
+  };
+  if (status === "partial") filter.paymentStatus = "partial";
+  if (status === "unpaid") filter.paymentStatus = "unpaid";
+
+  const enrollments = await Enrollment.find(filter)
+    .populate({
+      path: "studentId",
+      select: "fullName studentId parentId",
+      populate: { path: "parentId", select: "fullName phone email" },
+    })
+    .populate("classId", "className fee")
+    .lean();
+
+  const now = Date.now();
+  const items = enrollments
+    .map((e) => {
+      const fee = Number(e.feeAmount || 0);
+      const paid = Number(e.paidAmount || 0);
+      const debt = Math.max(fee - paid, 0);
+      if (debt <= 0) return null;
+      const dueDate = e.paymentDueDate
+        ? new Date(e.paymentDueDate)
+        : new Date(new Date(e.enrollmentDate).getTime() + 7 * 24 * 60 * 60 * 1000);
+      const overdueDays = Math.max(
+        0,
+        Math.floor((now - dueDate.getTime()) / (24 * 60 * 60 * 1000)),
+      );
+      return {
+        enrollmentId: e._id,
+        enrollmentCode: e.enrollmentId,
+        studentId: e.studentId?._id,
+        studentName: e.studentId?.fullName,
+        parentName: e.studentId?.parentId?.fullName,
+        parentPhone: e.studentId?.parentId?.phone,
+        classId: e.classId?._id,
+        className: e.classId?.className,
+        feeAmount: fee,
+        paidAmount: paid,
+        debt,
+        paymentStatus: e.paymentStatus,
+        paymentDueDate: dueDate,
+        overdueDays,
+      };
+    })
+    .filter(Boolean);
+
+  // Filter overdue
+  const filtered = status === "overdue" ? items.filter((i) => i.overdueDays > 0) : items;
+
+  // Buckets
+  const buckets = {};
+  let totalDebt = 0;
+  ageingBuckets.forEach((days) => {
+    buckets[`<=${days}d`] = { count: 0, debt: 0 };
+  });
+  buckets[`>${ageingBuckets[ageingBuckets.length - 1] || 90}d`] = {
+    count: 0,
+    debt: 0,
+  };
+
+  filtered.forEach((item) => {
+    totalDebt += item.debt;
+    let placed = false;
+    for (const days of ageingBuckets) {
+      if (item.overdueDays <= days) {
+        buckets[`<=${days}d`].count += 1;
+        buckets[`<=${days}d`].debt += item.debt;
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) {
+      const lastKey = `>${ageingBuckets[ageingBuckets.length - 1] || 90}d`;
+      buckets[lastKey].count += 1;
+      buckets[lastKey].debt += item.debt;
+    }
+  });
+
+  res.json({
+    success: true,
+    summary: {
+      totalEnrollmentsWithDebt: filtered.length,
+      totalDebt,
+      buckets,
+    },
+    items: filtered.sort((a, b) => b.overdueDays - a.overdueDays),
   });
 });

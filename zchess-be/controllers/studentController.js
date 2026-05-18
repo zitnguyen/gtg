@@ -1,7 +1,5 @@
 const Student = require("../models/Student");
 const User = require("../models/User");
-const Schedule = require("../models/Schedule");
-const Progress = require("../models/Progress");
 const Class = require("../models/Class");
 const mongoose = require("mongoose");
 const asyncHandler = require("../middleware/asyncHandler");
@@ -333,7 +331,7 @@ exports.deleteStudent = asyncHandler(async (req, res) => {
 
   const student = await Student.findOneAndUpdate(
     { _id: req.params.id, isDeleted: { $ne: true } },
-    { isDeleted: true, deletedAt: new Date() },
+    { isDeleted: true, deletedAt: new Date(), lifecycleStatus: "archived" },
     { new: true },
   );
   if (!student) {
@@ -343,8 +341,8 @@ exports.deleteStudent = asyncHandler(async (req, res) => {
     });
   }
 
-  await Schedule.deleteMany({ studentId: student._id });
-  await Progress.deleteMany({ studentId: student._id });
+  // Archive, không xoá lịch sử học tập/tài chính. Dữ liệu Schedule/Progress
+  // được giữ để có thể restore hoặc đối soát khi phụ huynh khiếu nại.
   await Class.updateMany(
     { studentIds: { $in: [student._id] } },
     { $pull: { studentIds: student._id } },
@@ -356,7 +354,41 @@ exports.deleteStudent = asyncHandler(async (req, res) => {
 
   return sendSuccess(res, {
     data: { id: req.params.id, isDeleted: true },
-    message: "Đã xóa mềm học viên, phiếu học tập và dữ liệu liên quan",
+    message: "Đã lưu trữ học viên và giữ nguyên lịch sử liên quan",
+  });
+});
+
+exports.restoreStudent = asyncHandler(async (req, res) => {
+  if (!isValidObjectId(req.params.id)) {
+    return sendFail(res, {
+      status: 400,
+      message: "Invalid ID format",
+    });
+  }
+
+  const student = await Student.findOneAndUpdate(
+    { _id: req.params.id, isDeleted: true },
+    {
+      isDeleted: false,
+      deletedAt: null,
+      lifecycleStatus: "active",
+      lastActiveAt: new Date(),
+    },
+    { new: true, runValidators: true },
+  )
+    .populate("parentId", "fullName email phone")
+    .populate("teacherId", "fullName username email phone");
+
+  if (!student) {
+    return sendFail(res, {
+      status: 404,
+      message: "Không tìm thấy học viên đã lưu trữ",
+    });
+  }
+
+  return sendSuccess(res, {
+    data: student,
+    message: "Khôi phục học viên thành công",
   });
 });
 
@@ -398,5 +430,112 @@ exports.getStudentsByParentId = asyncHandler(async (req, res) => {
   return sendSuccess(res, {
     data: students,
     message: "Lấy học viên theo phụ huynh thành công",
+  });
+});
+
+exports.getLeaderboard = asyncHandler(async (req, res) => {
+  const level = normalizeSkillLevel(req.query.level);
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 50);
+  const childId = req.query.childId;
+
+  const match = { isDeleted: { $ne: true } };
+
+  const rows = await Student.aggregate([
+    { $match: match },
+    {
+      $project: {
+        fullName: 1,
+        studentId: 1,
+        skillLevel: 1,
+        createdAt: 1,
+        completedLessons: { $ifNull: ["$completedLessons", 0] },
+        totalLessons: { $ifNull: ["$totalLessons", 0] },
+      },
+    },
+    {
+      $addFields: {
+        progressPercent: {
+          $cond: [
+            { $gt: ["$totalLessons", 0] },
+            {
+              $round: [
+                {
+                  $multiply: [
+                    { $divide: ["$completedLessons", "$totalLessons"] },
+                    100,
+                  ],
+                },
+                0,
+              ],
+            },
+            0,
+          ],
+        },
+      },
+    },
+    {
+      $addFields: {
+        skillLevelScore: {
+          $switch: {
+            branches: [
+              { case: { $eq: ["$skillLevel", "kid1"] }, then: 1 },
+              { case: { $eq: ["$skillLevel", "kid2"] }, then: 2 },
+              { case: { $eq: ["$skillLevel", "level1"] }, then: 3 },
+              { case: { $eq: ["$skillLevel", "level2"] }, then: 4 },
+              { case: { $eq: ["$skillLevel", "level3"] }, then: 5 },
+              { case: { $eq: ["$skillLevel", "level4"] }, then: 6 },
+              { case: { $eq: ["$skillLevel", "level5"] }, then: 7 },
+              { case: { $eq: ["$skillLevel", "level6"] }, then: 8 },
+              { case: { $eq: ["$skillLevel", "level7"] }, then: 9 },
+              { case: { $eq: ["$skillLevel", "level8"] }, then: 10 },
+              { case: { $eq: ["$skillLevel", "level9"] }, then: 11 },
+              { case: { $eq: ["$skillLevel", "level10"] }, then: 12 },
+            ],
+            default: 0,
+          },
+        },
+        learningScore: {
+          $add: [{ $multiply: ["$progressPercent", 1000] }, "$completedLessons"],
+        },
+      },
+    },
+    // Rank globally by level first (Level 10 highest), then learning metrics.
+    // Tie-break rule: created earlier => higher rank.
+    {
+      $sort: {
+        skillLevelScore: -1,
+        learningScore: -1,
+        completedLessons: -1,
+        createdAt: 1,
+        fullName: 1,
+      },
+    },
+  ]);
+
+  const rankedRowsAll = rows.map((item, index) => ({
+    rank: index + 1,
+    ...item,
+  }));
+
+  const rankedRows = level
+    ? rankedRowsAll.filter((item) => String(item.skillLevel || "") === level)
+    : rankedRowsAll;
+
+  let myChildRank = null;
+  if (childId && isValidObjectId(childId)) {
+    const found = rankedRowsAll.find((item) => String(item._id) === String(childId));
+    if (found) {
+      myChildRank = found.rank;
+    }
+  }
+
+  return sendSuccess(res, {
+    data: {
+      level: level || "all",
+      totalInLevel: rankedRows.length,
+      myChildRank,
+      items: rankedRows.slice(0, limit),
+    },
+    message: "Lấy bảng xếp hạng thành công",
   });
 });

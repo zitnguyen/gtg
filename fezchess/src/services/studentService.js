@@ -28,9 +28,17 @@ const studentService = {
     const response = await axiosClient.delete(`/students/${id}`);
     return unwrapData(response);
   },
+  restore: async (id) => {
+    const response = await axiosClient.post(`/students/${id}/restore`);
+    return unwrapData(response);
+  },
   getByParentId: async (parentId) => {
     const response = await axiosClient.get(`/students/parent/${parentId}`);
     return unwrapData(response) || [];
+  },
+  getLeaderboard: async (params = {}) => {
+    const response = await axiosClient.get("/students/leaderboard", { params });
+    return unwrapData(response) || { items: [] };
   },
 };
 

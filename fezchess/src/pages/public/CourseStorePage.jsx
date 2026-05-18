@@ -1,186 +1,393 @@
-import React, { useState, useEffect } from 'react';
-import courseService from '../../services/courseService';
-// import orderService from '../../services/orderService'; // Will be used in Detail page or cart
-import { PlayCircle, User, Search, Filter, BookOpen, Users } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { usePublicCms } from '../../context/PublicCmsContext';
-import PublicPageQuickEditor from "../../components/cms/PublicPageQuickEditor";
+import React, { useState, useEffect, useMemo } from "react";
+import courseService from "../../services/courseService";
+import { PlayCircle, BookOpen } from "lucide-react";
+import { Link } from "react-router-dom";
+import { usePublicCms } from "../../context/PublicCmsContext";
+import ScrollReveal from "../../components/common/ScrollReveal";
+
+/**
+ * Task: Course store — lọc chủ đề/trình độ (API), giá KM, UX tham khảo Chessable
+ * Tác giả: DucManh-BlueOC
+ */
+
+/** Nhãn chủ đề khớp enum Course.category (BE) — UX kiểu Chessable */
+const TOPIC_TABS = [
+  { key: "all", label: "Tất cả chủ đề", api: null },
+  { key: "Opening", label: "Khai cuộc", api: "Opening" },
+  { key: "Strategy", label: "Chiến lược", api: "Strategy" },
+  { key: "Tactics", label: "Chiến thuật", api: "Tactics" },
+  { key: "Endgame", label: "Cờ tàn", api: "Endgame" },
+  { key: "General", label: "Tổng hợp", api: "General" },
+];
+
+const LEVEL_TABS = [
+  { key: "all", label: "Mọi trình độ", api: null },
+  { key: "beginner", label: "Mới bắt đầu", api: "Beginner" },
+  { key: "intermediate", label: "Trung cấp", api: "Intermediate" },
+  { key: "kids", label: "Thiếu nhi", api: "Beginner" },
+];
+
+const CATEGORY_LABEL_VI = {
+  Opening: "Khai cuộc",
+  Strategy: "Chiến lược",
+  Tactics: "Chiến thuật",
+  Endgame: "Cờ tàn",
+  General: "Tổng hợp",
+};
 
 const CourseStorePage = () => {
-    const [courses, setCourses] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [filters, setFilters] = useState({
-        search: '',
-        category: '',
-        level: ''
-    });
-    const { cms } = usePublicCms();
-    const page = cms?.courseStore || {};
-    const theme = cms?.theme || {};
+  const [courses, setCourses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [topicFilter, setTopicFilter] = useState("all");
+  const [levelFilter, setLevelFilter] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const { cms } = usePublicCms();
+  const page = cms?.courseStore || {};
+  const COURSES_PER_PAGE = 6;
 
-    useEffect(() => {
-        fetchCourses();
-    }, [filters.category, filters.level]); // Debounce search in real app
-
+  useEffect(() => {
     const fetchCourses = async () => {
-        setLoading(true);
-        try {
-            const res = await courseService.getPublishedCourses(filters);
-            setCourses(res);
-        } catch (error) {
-            console.error("Failed to fetch courses", error);
-        } finally {
-            setLoading(false);
-        }
+      setLoading(true);
+      try {
+        const topicTab = TOPIC_TABS.find((t) => t.key === topicFilter);
+        const levelTab = LEVEL_TABS.find((l) => l.key === levelFilter);
+        const params = {};
+        if (topicTab?.api) params.category = topicTab.api;
+        if (levelTab?.api) params.level = levelTab.api;
+        const res = await courseService.getPublishedCourses(params);
+        const data = Array.isArray(res) ? res : [];
+        setCourses(data);
+      } catch (error) {
+        console.error("Failed to fetch courses", error);
+        setCourses([]);
+      } finally {
+        setLoading(false);
+      }
     };
+    fetchCourses();
+  }, [topicFilter, levelFilter]);
 
-    const handleSearchChange = (e) => {
-        setFilters({ ...filters, search: e.target.value });
+  const filteredCourses = courses;
+
+  const totalPages = Math.ceil(filteredCourses.length / COURSES_PER_PAGE);
+
+  const paginatedCourses = useMemo(() => {
+    const startIndex = (currentPage - 1) * COURSES_PER_PAGE;
+    return filteredCourses.slice(startIndex, startIndex + COURSES_PER_PAGE);
+  }, [filteredCourses, currentPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [topicFilter, levelFilter]);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [currentPage, topicFilter, levelFilter]);
+
+  useEffect(() => {
+    if (totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  const cardPriceLine = (course) => {
+    const list = Number(course?.price) || 0;
+    const sale = Number(course?.salePrice) || 0;
+    const hasSale = sale > 0 && sale < list;
+    const pay = hasSale ? sale : list;
+    if (pay === 0) return { main: "Miễn phí", sub: null };
+    return {
+      main: `${pay.toLocaleString("vi-VN")}đ`,
+      sub: hasSale ? `${list.toLocaleString("vi-VN")}đ` : null,
     };
+  };
 
-    const handleSearchSubmit = (e) => {
-        e.preventDefault();
-        fetchCourses();
-    };
+  const spotlightCourse = filteredCourses[0] || courses[0] || null;
 
-    const categories = ["Opening", "Strategy", "Tactics", "Endgame", "General"];
-    const levels = ["Beginner", "Intermediate", "Advanced", "All Levels"];
+  return (
+    <div
+      className="min-h-screen bg-[#f5f5f5] pb-16"
+      style={{
+        fontFamily:
+          page?.fontFamily && page.fontFamily !== "inherit"
+            ? page.fontFamily
+            : undefined,
+      }}
+    >
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-8 md:pt-10">
+        <ScrollReveal className="mb-7">
+          <h1 className="text-4xl md:text-5xl font-bold text-black leading-tight">
+            {page?.title || "Làm chủ bàn cờ"}
+          </h1>
+          <p className="mt-3 text-gray-600 max-w-2xl text-sm md:text-base">
+            {page?.description ||
+              "Từ những nước đi đầu tiên đến chiến lược nâng cao, khám phá các khóa học được thiết kế cho mọi độ tuổi và trình độ."}
+          </p>
+        </ScrollReveal>
 
-    return (
-        <div className="min-h-screen pb-20" style={{ backgroundColor: page?.pageBackgroundColor || "#F9FAFB", fontFamily: page?.fontFamily && page.fontFamily !== "inherit" ? page.fontFamily : undefined }}>
-             {/* Header Section */}
-             <div
-               className="text-white py-16 text-center mb-8"
-               style={{
-                backgroundColor: page?.heroBackground ? undefined : (theme?.secondaryColor || "#1e3a8a"),
-                backgroundImage: page?.heroBackground ? `url(${page.heroBackground})` : undefined,
-                backgroundSize: "cover",
-                backgroundPosition: "center",
-               }}
-             >
-                  <h1 className="text-4xl font-bold mb-4 font-heading" style={{ color: page?.titleColor || "#FFFFFF", fontSize: page?.titleFontSize || undefined }}>{page?.title || "KHO KHÓA HỌC VIDEO"}</h1>
-                  <p className="text-xl opacity-90 max-w-2xl mx-auto" style={{ color: page?.descriptionColor || "#E2E8F0", fontSize: page?.descriptionFontSize || undefined }}>
-                      {page?.description || "Hệ thống bài giảng chất lượng cao, giúp bạn làm chủ bàn cờ từ Khai cuộc đến Tàn cuộc."}
-                  </p>
-             </div>
+        <ScrollReveal className="space-y-3 mb-7">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+            Chủ đề
+          </p>
+          <div className="flex flex-wrap gap-2.5">
+            {TOPIC_TABS.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setTopicFilter(tab.key)}
+                className={`px-4 py-2 rounded-full text-xs font-semibold border transition-colors ${
+                  topicFilter === tab.key
+                    ? "bg-black text-white border-black"
+                    : "bg-white text-gray-700 border-gray-200 hover:border-gray-300"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 pt-1">
+            Trình độ
+          </p>
+          <div className="flex flex-wrap gap-2.5">
+            {LEVEL_TABS.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setLevelFilter(tab.key)}
+                className={`px-4 py-2 rounded-full text-xs font-semibold border transition-colors ${
+                  levelFilter === tab.key
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "bg-white text-gray-700 border-gray-200 hover:border-gray-300"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </ScrollReveal>
 
-            <div className="max-w-7xl mx-auto px-6">
-                
-                {/* Search & Filter Section */}
-                <div className="bg-white p-6 rounded-lg shadow-sm mb-8">
-                    <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-                        {/* Search */}
-                        <form onSubmit={handleSearchSubmit} className="relative w-full md:w-1/3">
-                            <input 
-                                type="text" 
-                                placeholder="Tìm khóa học..." 
-                                className="w-full pl-10 pr-4 py-2 border rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                value={filters.search}
-                                onChange={handleSearchChange}
-                            />
-                            <Search className="absolute left-3 top-2.5 text-gray-400" size={18} style={{ color: page?.iconColor || undefined }} />
-                        </form>
-
-                        {/* Filters */}
-                        <div className="flex gap-4 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
-                            <select 
-                                className="border rounded-md px-3 py-2 bg-white"
-                                value={filters.category}
-                                onChange={(e) => setFilters({...filters, category: e.target.value})}
-                            >
-                                <option value="">Tất cả Thể loại</option>
-                                {categories.map(c => <option key={c} value={c}>{c}</option>)}
-                            </select>
-
-                            <select 
-                                className="border rounded-md px-3 py-2 bg-white"
-                                value={filters.level}
-                                onChange={(e) => setFilters({...filters, level: e.target.value})}
-                            >
-                                <option value="">Tất cả Trình độ</option>
-                                {levels.map(l => <option key={l} value={l}>{l}</option>)}
-                            </select>
-                        </div>
+        {loading ? (
+          <div className="text-center py-16 text-gray-500">
+            Đang tải dữ liệu...
+          </div>
+        ) : filteredCourses.length === 0 ? (
+          <div className="text-center py-16 text-gray-500 bg-white rounded-2xl border border-gray-200">
+            Không tìm thấy khóa học phù hợp.
+          </div>
+        ) : (
+          <ScrollReveal className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
+            {paginatedCourses.map((course) => (
+              <Link
+                to={`/courses/${course.slug}`}
+                key={course._id}
+                className="group block bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-lg hover:-translate-y-1 hover:border-blue-200 transition-all duration-300"
+              >
+                <div className="relative h-44 bg-gray-200">
+                  {course.thumbnail ? (
+                    <img
+                      src={course.thumbnail}
+                      alt={course.title}
+                      className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-300"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-gray-800 text-white">
+                      <PlayCircle size={42} className="opacity-60" />
                     </div>
+                  )}
+                  <div className="absolute top-2.5 left-2.5 flex flex-wrap gap-1.5 max-w-[calc(100%-1rem)]">
+                    <span className="bg-blue-600 text-white px-2.5 py-1 rounded-full text-[10px] font-bold uppercase">
+                      {String(course.level || "—")}
+                    </span>
+                    {course.category ? (
+                      <span className="bg-white/95 text-gray-800 px-2.5 py-1 rounded-full text-[10px] font-bold border border-gray-200">
+                        {CATEGORY_LABEL_VI[course.category] || course.category}
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
 
-                {/* Course Grid */}
-                {loading ? (
-                    <div className="text-center py-12 text-gray-500">Đang tải dữ liệu...</div>
-                ) : (
-                    <>
-                        {courses.length === 0 ? (
-                            <div className="text-center py-12 text-gray-500">
-                                Không tìm thấy khóa học nào phù hợp.
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                                {courses.map(course => (
-                                    <Link to={`/courses/${course.slug}`} key={course._id} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300 block">
-                                        <div className="relative h-48 bg-gray-200">
-                                            {course.thumbnail ? (
-                                                <img src={course.thumbnail} alt={course.title} className="w-full h-full object-cover" />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center bg-gray-800 text-white">
-                                                    <PlayCircle size={48} className="opacity-50" />
-                                                </div>
-                                            )}
-                                            <div className="absolute top-3 right-3 bg-yellow-400 text-gray-900 px-3 py-1 rounded-full text-xs font-bold shadow-sm">
-                                                {course.price === 0 ? 'Miễn phí' : `${course.price.toLocaleString()}đ`}
-                                            </div>
-                                            <div className="absolute bottom-3 left-3 bg-black/60 text-white px-2 py-1 rounded text-xs">
-                                                {course.level}
-                                            </div>
-                                        </div>
-                                        
-                                        <div className="p-5">
-                                            <div className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: page?.iconColor || "#2563EB" }}>
-                                                {course.category}
-                                            </div>
-                                            <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2 h-14">
-                                                {course.title}
-                                            </h3>
-                                            
-                                            <div className="space-y-2 text-sm text-gray-500 mt-4 pt-4 border-t border-gray-100">
-                                                <div className="flex items-center justify-between">
-                                                    <div className="flex items-center gap-2">
-                                                        <User size={16} style={{ color: page?.iconColor || undefined }} />
-                                                        <span>{course.instructor?.fullName || 'Daisy Team'}</span>
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center justify-between">
-                                                    <div className="flex items-center gap-2">
-                                                        <BookOpen size={16} style={{ color: page?.iconColor || undefined }} />
-                                                        <span>{course.totalLessons || 0} bài học</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <Users size={16} style={{ color: page?.iconColor || undefined }} />
-                                                        <span>{course.enrolledStudents || 0} học viên</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </Link>
-                                ))}
-                            </div>
-                        )}
-                    </>
-                )}
+                <div className="p-4">
+                  <h3 className="text-2xl font-bold text-gray-900 mb-1.5 line-clamp-2 leading-tight">
+                    {course.title}
+                  </h3>
+                  <p className="text-xs text-gray-600 line-clamp-2 mb-3 min-h-[32px]">
+                    {course.description ||
+                      "Khóa học thực chiến giúp bạn tiến bộ qua từng bài."}
+                  </p>
+
+                  <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
+                    <span className="inline-flex items-center gap-1">
+                      <BookOpen size={13} />
+                      {course.totalLessons || 0} bài học
+                    </span>
+                    <span className="font-semibold text-gray-900 inline-flex items-baseline gap-2">
+                      {(() => {
+                        const { main, sub } = cardPriceLine(course);
+                        return (
+                          <>
+                            <span>{main}</span>
+                            {sub ? (
+                              <span className="text-gray-400 line-through text-[11px] font-normal">
+                                {sub}
+                              </span>
+                            ) : null}
+                          </>
+                        );
+                      })()}
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="w-full py-2.5 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-sm font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 active:scale-[0.98]"
+                  >
+                    Đăng ký ngay
+                  </button>
+                </div>
+              </Link>
+            ))}
+          </ScrollReveal>
+        )}
+
+        {!loading && filteredCourses.length > 0 && totalPages > 1 && (
+          <div className="mt-8 flex items-center justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-2 rounded-lg border border-gray-300 bg-white text-sm text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Trước
+            </button>
+            {Array.from({ length: totalPages }, (_, index) => index + 1).map((pageNumber) => (
+              <button
+                key={pageNumber}
+                type="button"
+                onClick={() => setCurrentPage(pageNumber)}
+                className={`w-9 h-9 rounded-lg text-sm font-semibold transition-colors ${
+                  currentPage === pageNumber
+                    ? "bg-blue-600 text-white"
+                    : "bg-white border border-gray-300 text-gray-700 hover:border-blue-400"
+                }`}
+              >
+                {pageNumber}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() =>
+                setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+              }
+              disabled={currentPage === totalPages}
+              className="px-3 py-2 rounded-lg border border-gray-300 bg-white text-sm text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Sau
+            </button>
+          </div>
+        )}
+
+        {/* Task: Strip giải thích mô hình khoá học + bài tập (Chessable-like) — DucManh-BlueOC */}
+        <ScrollReveal className="mt-12 rounded-2xl border border-slate-200 bg-white p-6 md:p-8 shadow-sm">
+          <h2 className="text-xl font-bold text-gray-900 mb-2">
+            Học và luyện theo lộ trình có cấu trúc
+          </h2>
+          <p className="text-sm text-gray-600 mb-6 max-w-3xl leading-relaxed">
+            Giống các nền tảng khoá học cờ chuyên sâu: bạn chọn chủ đề phù hợp,
+            học qua video hoặc bàn cờ có hướng dẫn, sau đó củng cố bằng bài
+            tập nước đi (chế độ chấm đúng/sai). Z Chess dùng chung một khóa học
+            cho lý thuyết và bài cờ — admin gắn bài tập FEN/PGN ngay trong từng
+            bài học.
+          </p>
+          <ol className="grid md:grid-cols-3 gap-6 text-sm text-gray-700 list-none m-0 p-0">
+            <li className="rounded-xl border border-gray-100 bg-slate-50/80 p-4">
+              <span className="text-[11px] font-bold text-blue-600 uppercase tracking-wide">
+                Bước 1
+              </span>
+              <p className="mt-2 font-semibold text-gray-900">Chọn chủ đề & trình độ</p>
+              <p className="mt-1 text-gray-600 leading-relaxed">
+                Lọc khai cuộc, chiến thuật, cờ tàn… và mức phù hợp để không bị
+                quá tải.
+              </p>
+            </li>
+            <li className="rounded-xl border border-gray-100 bg-slate-50/80 p-4">
+              <span className="text-[11px] font-bold text-blue-600 uppercase tracking-wide">
+                Bước 2
+              </span>
+              <p className="mt-2 font-semibold text-gray-900">Học trên bàn & video</p>
+              <p className="mt-1 text-gray-600 leading-relaxed">
+                Từng bài có thể là video, bài đọc hoặc bàn cờ nội bộ với chuỗi
+                nước và ghi chú.
+              </p>
+            </li>
+            <li className="rounded-xl border border-gray-100 bg-slate-50/80 p-4">
+              <span className="text-[11px] font-bold text-blue-600 uppercase tracking-wide">
+                Bước 3
+              </span>
+              <p className="mt-2 font-semibold text-gray-900">Luyện nước đúng</p>
+              <p className="mt-1 text-gray-600 leading-relaxed">
+                Bài cờ bật chế độ bài tập + import FEN/PGN giúp nhớ mẫu và phản
+                xạ tình huống.
+              </p>
+            </li>
+          </ol>
+        </ScrollReveal>
+
+        {spotlightCourse && (
+          <ScrollReveal className="mt-10 bg-[#efefef] border border-gray-200 rounded-xl p-5 md:p-6 grid grid-cols-1 lg:grid-cols-2 gap-6 items-center">
+            <div>
+              <div className="text-[11px] font-semibold tracking-[0.12em] uppercase text-gray-500 mb-2">
+                Khóa học nổi bật
+              </div>
+              <h2 className="text-3xl md:text-4xl font-bold text-black mb-3">
+                {spotlightCourse.title}
+              </h2>
+              <p className="text-sm text-gray-600 mb-4 max-w-xl">
+                {spotlightCourse.description ||
+                  "Khóa học chuyên sâu giúp bạn nâng cao tư duy chiến thuật, phân tích thế trận và ra quyết định chính xác."}
+              </p>
+              <div className="space-y-1.5 text-sm text-gray-700 mb-5">
+                <div>• Hỏi đáp trực tiếp cùng huấn luyện viên</div>
+                <div>• Bài tập tương tác theo tình huống</div>
+                <div>• Báo cáo tiến bộ cá nhân hóa</div>
+              </div>
+              <div className="flex gap-2.5">
+                <Link
+                  to={`/courses/${spotlightCourse.slug}`}
+                  className="px-5 py-2.5 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-sm font-semibold hover:from-blue-700 hover:to-indigo-700"
+                >
+                  Bắt đầu học
+                </Link>
+                <Link
+                  to={`/courses/${spotlightCourse.slug}`}
+                  className="px-5 py-2.5 rounded-lg border border-gray-300 bg-white text-black text-sm font-semibold"
+                >
+                  Xem lộ trình
+                </Link>
+              </div>
             </div>
-            <PublicPageQuickEditor
-                title="Chỉnh giao diện Khóa học"
-                fields={[
-                    { path: "courseStore.title", label: "Tiêu đề trang" },
-                    { path: "courseStore.description", label: "Mô tả trang", type: "textarea" },
-                    { path: "courseStore.buttonColor", label: "Màu nút", type: "color" },
-                    { path: "courseStore.buttonTextColor", label: "Màu chữ nút", type: "color" },
-                    { path: "courseStore.iconColor", label: "Màu icon", type: "color" },
-                    { path: "courseStore.pageBackgroundColor", label: "Màu nền trang", type: "color" },
-                    { path: "courseStore.titleColor", label: "Màu tiêu đề", type: "color" },
-                ]}
-            />
-        </div>
-    );
+            <div className="relative h-56 md:h-64 rounded-xl overflow-hidden border border-gray-300">
+              {spotlightCourse.thumbnail ? (
+                <img
+                  src={spotlightCourse.thumbnail}
+                  alt={spotlightCourse.title}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full bg-gray-800 flex items-center justify-center text-white">
+                  <PlayCircle size={54} />
+                </div>
+              )}
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-16 h-16 rounded-full bg-black/45 backdrop-blur-sm flex items-center justify-center text-white">
+                  <PlayCircle size={28} />
+                </div>
+              </div>
+            </div>
+          </ScrollReveal>
+        )}
+      </div>
+    </div>
+  );
 };
 
 export default CourseStorePage;

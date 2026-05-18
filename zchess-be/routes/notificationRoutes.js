@@ -8,6 +8,7 @@ router.use(protect);
 
 router.post("/", authorize("Admin"), notificationController.createNotification);
 router.get("/", notificationController.getMyNotifications);
+router.patch("/read-all", notificationController.markAllNotificationsRead);
 router.get("/:id", notificationController.getNotificationDetail);
 router.patch("/:id/read", notificationController.markNotificationRead);
 

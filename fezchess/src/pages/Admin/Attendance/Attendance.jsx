@@ -135,18 +135,18 @@ const Attendance = () => {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-10">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Điểm danh</h1>
           <p className="text-sm text-gray-500 mt-1">
             Chọn lớp + ngày, điểm danh theo danh sách học viên trong lớp.
           </p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row gap-3 sm:items-center w-full md:w-auto">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
             <BookOpen className="text-primary shrink-0" size={18} />
             <select
-              className="border border-gray-200 rounded-xl px-3 py-2 text-sm min-w-[200px]"
+              className="border border-gray-200 rounded-xl px-3 py-2 text-sm w-full min-w-0 sm:min-w-[200px]"
               value={selectedClassId}
               onChange={(e) => setSelectedClassId(e.target.value)}
             >
@@ -158,12 +158,12 @@ const Attendance = () => {
               ))}
             </select>
           </div>
-          <div className="relative">
+          <div className="relative w-full sm:w-auto">
             <input
               type="date"
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
-              className="pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none shadow-sm"
+              className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none shadow-sm"
             />
             <Calendar
               size={16}
@@ -173,7 +173,7 @@ const Attendance = () => {
           <button
             onClick={handleSave}
             disabled={saving || !selectedClassId || rows.length === 0}
-            className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl hover:bg-primary/90 shadow-lg shadow-primary/25 transition-all disabled:opacity-70 disabled:cursor-not-allowed font-medium"
+            className="w-full sm:w-auto justify-center flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl hover:bg-primary/90 shadow-lg shadow-primary/25 transition-all disabled:opacity-70 disabled:cursor-not-allowed font-medium"
           >
             {saving ? (
               <Loader2 className="animate-spin" size={18} />
@@ -185,7 +185,7 @@ const Attendance = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
         <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
           <div className="text-sm text-gray-500">Tổng học viên</div>
           <div className="text-2xl font-bold text-gray-900 mt-1">
@@ -221,7 +221,57 @@ const Attendance = () => {
             Lớp chưa có học viên.
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="md:hidden divide-y divide-gray-100">
+            {rows.map((r, index) => (
+              <div key={`m-${r.studentMongoId}`} className="p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="font-semibold text-gray-900">{r.name}</div>
+                    <div className="text-xs text-gray-500 mt-0.5">#{index + 1} • Mã: {r.code || "—"}</div>
+                  </div>
+                  <span className={`text-xs font-semibold px-2 py-1 rounded-full ${r.status === "present" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                    {r.status === "present" ? "Có mặt" : "Vắng"}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    disabled={!r.canMark}
+                    onClick={() => handleStatusChange(r.studentMongoId, "present")}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium border ${
+                      r.status === "present"
+                        ? "bg-green-50 border-green-200 text-green-700"
+                        : "bg-white border-gray-200 text-gray-600"
+                    } ${!r.canMark ? "opacity-50 cursor-not-allowed" : ""}`}
+                  >
+                    Có mặt
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!r.canMark}
+                    onClick={() => handleStatusChange(r.studentMongoId, "absent")}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium border ${
+                      r.status === "absent"
+                        ? "bg-red-50 border-red-200 text-red-700"
+                        : "bg-white border-gray-200 text-gray-600"
+                    } ${!r.canMark ? "opacity-50 cursor-not-allowed" : ""}`}
+                  >
+                    Vắng
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  value={r.note}
+                  disabled={!r.canMark}
+                  onChange={(e) => handleNoteChange(r.studentMongoId, e.target.value)}
+                  className={`w-full px-3 py-2 rounded-lg border border-gray-200 text-sm ${!r.canMark ? "bg-gray-50 text-gray-400 cursor-not-allowed" : ""}`}
+                  placeholder={r.canMark ? "Ghi chú..." : "Không có lịch học trong ngày"}
+                />
+              </div>
+            ))}
+          </div>
+          <div className="hidden md:block overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
@@ -239,7 +289,7 @@ const Attendance = () => {
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-background divide-y divide-border">
                 {rows.map((r, index) => (
                   <tr key={r.studentMongoId} className="hover:bg-gray-50">
                     <td className="px-6 py-4 text-sm text-gray-500">
@@ -306,6 +356,7 @@ const Attendance = () => {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
     </div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Download, Search, ChevronLeft, ChevronRight, Edit, Trash2, RotateCw, DollarSign, Calendar, BookOpen, User, MoreVertical, CheckCircle, AlertCircle, Loader2, CheckCircle2 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -7,6 +7,7 @@ import enrollmentService from '../../../services/enrollmentService';
 import financeService from '../../../services/financeService';
 import TableSkeleton from '../../../components/ui/TableSkeleton';
 import useUndoDelete from '../../../hooks/useUndoDelete';
+import { useTheme } from '../../../context/ThemeContext';
 
 const EnrollmentList = () => {
     const navigate = useNavigate();
@@ -20,6 +21,8 @@ const EnrollmentList = () => {
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [highlightedRowId, setHighlightedRowId] = useState(null);
     const { scheduleUndoDelete } = useUndoDelete();
+    const { isDark } = useTheme();
+    const lastToastKeyRef = useRef('');
     
     // State for delete confirmation
     const [deleteConfirm, setDeleteConfirm] = useState(null);
@@ -42,11 +45,18 @@ const EnrollmentList = () => {
     useEffect(() => {
         const updatedId = location.state?.updatedEnrollmentId;
         if (!updatedId) return;
+        const toastKey = `enrollment-updated-${updatedId}-${location.state?.updatedAt || ''}`;
+        if (lastToastKeyRef.current === toastKey) return;
+        lastToastKeyRef.current = toastKey;
         setHighlightedRowId(updatedId);
-        toast.success("✔ Cập nhật thành công", { icon: <CheckCircle2 size={16} /> });
+        toast.success("✔ Cập nhật thành công", {
+            id: toastKey,
+            icon: <CheckCircle2 size={16} />,
+        });
+        navigate(location.pathname, { replace: true, state: {} });
         const timeout = setTimeout(() => setHighlightedRowId(null), 2500);
         return () => clearTimeout(timeout);
-    }, [location.state?.updatedEnrollmentId, location.state?.updatedAt]);
+    }, [location.state?.updatedEnrollmentId, location.state?.updatedAt, location.pathname, navigate]);
 
     const fetchEnrollments = async () => {
         try {
@@ -216,7 +226,7 @@ const EnrollmentList = () => {
                                     <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Hành Động</th>
                                 </tr>
                             </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
+                            <tbody className="bg-background divide-y divide-border">
                                 {currentItems.map((item) => (
                                     <motion.tr
                                         key={item._id}
@@ -225,7 +235,13 @@ const EnrollmentList = () => {
                                             opacity: 1,
                                             scale: 1,
                                             backgroundColor:
-                                                highlightedRowId === item._id ? "rgb(240 253 244)" : "rgb(255 255 255)",
+                                                highlightedRowId === item._id
+                                                    ? isDark
+                                                        ? "rgb(6 46 26)"
+                                                        : "rgb(240 253 244)"
+                                                    : isDark
+                                                        ? "rgb(0 0 0)"
+                                                        : "rgb(255 255 255)",
                                         }}
                                         transition={{ duration: 0.28, ease: "easeOut" }}
                                         className="hover:bg-gray-50 transition-colors group"

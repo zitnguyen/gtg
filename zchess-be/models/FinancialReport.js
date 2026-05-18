@@ -1,13 +1,43 @@
 const mongoose = require("mongoose");
 
-const financialReportSchema = new mongoose.Schema({
-  reportId: { type: Number, required: true, unique: true },
-  startDate: { type: Date, required: true },
-  endDate: { type: Date, required: true },
-  totalRevenue: { type: Number, default: 0 }, // sẽ tính tự động
-  totalExpense: { type: Number, default: 0 }, // sẽ tính tự động
-  netProfit: { type: Number, default: 0 }, // = totalRevenue - totalExpense
-  reportType: { type: String }, // monthly, yearly...
-  revenueIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Revenue" }], // liên kết doanh thu
-  expenseIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Expense" }], // liên kết chi phí
-});
+const breakdownItemSchema = new mongoose.Schema(
+  {
+    key: { type: String, required: true, trim: true },
+    label: { type: String, required: true, trim: true },
+    amount: { type: Number, default: 0, min: 0 },
+  },
+  { _id: false },
+);
+
+const financialReportSchema = new mongoose.Schema(
+  {
+    period: {
+      month: { type: Number, required: true, min: 1, max: 12 },
+      year: { type: Number, required: true, min: 2000 },
+    },
+    startDate: { type: Date, required: true },
+    endDate: { type: Date, required: true },
+    totalRevenue: { type: Number, default: 0 },
+    totalExpense: { type: Number, default: 0 },
+    netProfit: { type: Number, default: 0 },
+    revenueBreakdown: { type: [breakdownItemSchema], default: [] },
+    expenseBreakdown: { type: [breakdownItemSchema], default: [] },
+    revenueIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Revenue" }],
+    expenseIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Expense" }],
+    generatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+  },
+  { timestamps: true },
+);
+
+financialReportSchema.index(
+  { "period.year": 1, "period.month": 1 },
+  { unique: true },
+);
+
+const FinancialReport = mongoose.model("FinancialReport", financialReportSchema);
+
+module.exports = FinancialReport;

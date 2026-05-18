@@ -44,10 +44,21 @@ const studentSchema = new mongoose.Schema(
     totalLessons: { type: Number, default: 0, min: 0 },
     completedLessons: { type: Number, default: 0, min: 0 },
     note: { type: String, trim: true },
+    lifecycleStatus: {
+      type: String,
+      enum: ["trial", "active", "inactive", "dropped", "archived"],
+      default: "active",
+      index: true,
+    },
+    lastActiveAt: { type: Date, default: null, index: true },
     isDeleted: { type: Boolean, default: false, index: true },
     deletedAt: { type: Date, default: null },
   },
   { timestamps: true },
 );
+
+studentSchema.index({ parentId: 1, isDeleted: 1 });
+studentSchema.index({ lifecycleStatus: 1, lastActiveAt: -1 });
+
 const Student = mongoose.model("Student", studentSchema);
 module.exports = Student;

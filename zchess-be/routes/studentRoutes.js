@@ -11,6 +11,11 @@ router.use(protect);
  * Đặt trước block Admin để không bị nuốt bởi GET /:id.
  */
 router.get("/my-children", authorize("Parent"), studentController.getMyChildren);
+router.get(
+  "/leaderboard",
+  authorize("Admin", "Teacher", "Parent", "Student"),
+  studentController.getLeaderboard,
+);
 
 router.get(
   "/parent/:parentId",
@@ -27,6 +32,7 @@ router.get("/:id", validateObjectIdParam("id"), studentController.getStudentById
 router.post("/", studentController.createStudent);
 router.put("/:id", validateObjectIdParam("id"), studentController.updateStudent);
 router.patch("/:id", validateObjectIdParam("id"), studentController.updateStudent);
+router.post("/:id/restore", validateObjectIdParam("id"), studentController.restoreStudent);
 router.delete("/:id", validateObjectIdParam("id"), studentController.deleteStudent);
 
 module.exports = router;

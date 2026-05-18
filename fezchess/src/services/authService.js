@@ -10,6 +10,8 @@ const authService = {
       const normalized = {
         ...(response || {}),
         _id: response?._id || response?.userId,
+        elo: Number.isFinite(response?.elo) ? response.elo : 100,
+        linkedStudentId: response?.linkedStudentId || null,
       };
       localStorage.setItem('user', JSON.stringify(normalized));
       return normalized;

@@ -142,6 +142,20 @@ axiosClient.interceptors.response.use(
       // Any status codes that falls outside the range of 2xx cause this function to trigger
       console.error('API Error:', error);
     }
+    const data = error?.response?.data;
+    let apiMessage = error?.message || "Request failed";
+    if (data && typeof data === "object" && !(data instanceof Blob)) {
+      if (typeof data.message === "string" && data.message.trim()) {
+        apiMessage = data.message.trim();
+      } else if (typeof data.error === "string" && data.error.trim()) {
+        apiMessage = data.error.trim();
+      } else if (Array.isArray(data.errors) && data.errors.length) {
+        apiMessage = data.errors
+          .map((e) => e?.msg || e?.message || String(e))
+          .join("; ");
+      }
+    }
+    error.apiMessage = apiMessage;
     return Promise.reject(error);
   }
 );

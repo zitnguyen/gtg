@@ -40,6 +40,13 @@ const deleteTransaction = async (id) => {
     return await axiosClient.delete(`/finance/transactions/${id}`);
 };
 
+const getFinanceReport = async (month, year) => {
+    const params = new URLSearchParams();
+    if (month) params.append('month', month);
+    if (year) params.append('year', year);
+    return await axiosClient.get(`/finance/report?${params}`);
+};
+
 const exportFinanceReport = async (month, year) => {
     const params = new URLSearchParams();
     if (month) params.append('month', month);
@@ -50,7 +57,7 @@ const exportFinanceReport = async (month, year) => {
     const blob = res.data;
     const disposition = res.headers?.['content-disposition'] || '';
     const match = /filename="?([^";]+)"?/i.exec(disposition);
-    const filename = match?.[1] || 'BaoCaoTaiChinh.csv';
+    const filename = match?.[1] || 'BaoCaoTaiChinh.xlsx';
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -61,8 +68,12 @@ const exportFinanceReport = async (month, year) => {
     window.URL.revokeObjectURL(url);
 };
 
-const payTuition = async (enrollmentId) => {
-    return await axiosClient.post(`/finance/pay-tuition`, { enrollmentId });
+const payTuition = async (enrollmentId, payment = {}) => {
+    return await axiosClient.post(`/finance/pay-tuition`, { enrollmentId, ...payment });
+};
+
+const getTuitionDebts = async (params = {}) => {
+    return await axiosClient.get(`/finance/tuition-debts`, { params });
 };
 
 const financeService = {
@@ -70,11 +81,13 @@ const financeService = {
     getFinanceChart,
     getCostStructure,
     getTransactions,
+    getFinanceReport,
     createTransaction,
     updateTransaction,
     deleteTransaction,
     exportFinanceReport,
-    payTuition
+    payTuition,
+    getTuitionDebts
 };
 
 export default financeService;

@@ -59,7 +59,7 @@ const PublicLayout = ({ children }) => {
             <div style={{display:'grid', gridTemplateColumns:'2fr 1fr 1fr 1fr', gap:'60px'}}>
                 <div>
                     <div style={{display:'flex', alignItems:'center', gap:'10px', color:'white', fontWeight:'800', fontSize:'24px', marginBottom:'24px'}}>
-                         <div style={{width:'32px', height:'32px', background:'var(--p-accent)', borderRadius:'8px', display:'flex', alignItems:'center', justifyContent:'center'}}>♟</div>
+                         <div style={{width:'32px', height:'32px', background:'var(--color-accent)', borderRadius:'8px', display:'flex', alignItems:'center', justifyContent:'center'}}>♟</div>
                          ZCHESS
                     </div>
                     <p style={{lineHeight:'1.6', marginBottom:'24px'}}>

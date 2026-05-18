@@ -4,12 +4,18 @@ import ScrollReveal from "../common/ScrollReveal";
 import Spinner from "../common/Spinner";
 import { useSystemSettings } from "../../context/SystemSettingsContext";
 import { usePublicCms } from "../../context/PublicCmsContext";
+import { useTheme } from "../../context/ThemeContext";
 
 const ContactSection = () => {
   const { settings } = useSystemSettings();
   const { cms } = usePublicCms();
+  const { isDark } = useTheme();
   const section = cms?.home?.contact || {};
   const theme = cms?.theme || {};
+  const badgeStyle = {
+    backgroundColor: isDark ? "#FFFFFF" : "#000000",
+    color: isDark ? "#000000" : "#FFFFFF",
+  };
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
@@ -67,7 +73,9 @@ const ContactSection = () => {
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
     setIsLoading(false);
-    alert("Đăng ký thành công! Chúng tôi sẽ liên hệ bạn trong thời gian sớm nhất.");
+    alert(
+      "Đăng ký thành công! Chúng tôi sẽ liên hệ bạn trong thời gian sớm nhất.",
+    );
     setFormData({ name: "", phone: "", email: "", childAge: "", message: "" });
   };
 
@@ -75,7 +83,9 @@ const ContactSection = () => {
     <section
       className="py-20 bg-background"
       id="contact"
-      style={{ backgroundColor: section?.sectionBgColor || undefined }}
+      style={{
+        backgroundColor: isDark ? "#000000" : "#FFFFFF",
+      }}
     >
       <div className="container mx-auto px-4">
         <div className="grid lg:grid-cols-2 gap-12 items-center">
@@ -83,16 +93,12 @@ const ContactSection = () => {
           <ScrollReveal direction="left">
             <span
               className="inline-block px-4 py-2 rounded-full text-sm font-medium mb-4"
-              style={{
-                backgroundColor: section?.badgeBgColor || undefined,
-                color: section?.badgeTextColor || undefined,
-              }}
+              style={badgeStyle}
             >
               {section?.badge || "Liên hệ"}
             </span>
             <h2
               className="font-display text-3xl md:text-4xl font-bold text-foreground mb-4"
-              style={{ color: section?.titleColor || undefined }}
             >
               {section?.title || "Đăng ký học thử"}{" "}
               <span
@@ -106,7 +112,9 @@ const ContactSection = () => {
                 {section?.highlightedText || "miễn phí"}
               </span>
             </h2>
-            <p className="text-muted-foreground mb-8" style={{ color: section?.descriptionColor || undefined }}>
+            <p
+              className="text-muted-foreground mb-8"
+            >
               {section?.description ||
                 "Điền thông tin bên dưới và chúng tôi sẽ liên hệ bạn trong vòng 24 giờ để sắp xếp buổi học thử cho con."}
             </p>
@@ -170,12 +178,16 @@ const ContactSection = () => {
                     value={formData.name}
                     onChange={handleChange}
                     className={`w-full px-4 py-3 rounded-lg border bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all ${
-                      shakeField === "name" ? "animate-shake border-destructive" : "border-input"
+                      shakeField === "name"
+                        ? "animate-shake border-destructive"
+                        : "border-input"
                     } ${errors.name ? "border-destructive" : ""}`}
                     placeholder="Nhập họ và tên"
                   />
                   {errors.name && (
-                    <p className="text-destructive text-sm mt-1">{errors.name}</p>
+                    <p className="text-destructive text-sm mt-1">
+                      {errors.name}
+                    </p>
                   )}
                 </div>
 
@@ -190,12 +202,16 @@ const ContactSection = () => {
                     value={formData.phone}
                     onChange={handleChange}
                     className={`w-full px-4 py-3 rounded-lg border bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all ${
-                      shakeField === "phone" ? "animate-shake border-destructive" : "border-input"
+                      shakeField === "phone"
+                        ? "animate-shake border-destructive"
+                        : "border-input"
                     } ${errors.phone ? "border-destructive" : ""}`}
                     placeholder="Nhập số điện thoại"
                   />
                   {errors.phone && (
-                    <p className="text-destructive text-sm mt-1">{errors.phone}</p>
+                    <p className="text-destructive text-sm mt-1">
+                      {errors.phone}
+                    </p>
                   )}
                 </div>
 
@@ -213,7 +229,9 @@ const ContactSection = () => {
                     placeholder="Nhập email (không bắt buộc)"
                   />
                   {errors.email && (
-                    <p className="text-destructive text-sm mt-1">{errors.email}</p>
+                    <p className="text-destructive text-sm mt-1">
+                      {errors.email}
+                    </p>
                   )}
                 </div>
 
@@ -267,7 +285,10 @@ const ContactSection = () => {
                 >
                   {isLoading ? (
                     <>
-                      <Spinner size="sm" className="border-primary-foreground border-t-transparent" />
+                      <Spinner
+                        size="sm"
+                        className="border-primary-foreground border-t-transparent"
+                      />
                       <span>Đang gửi...</span>
                     </>
                   ) : (

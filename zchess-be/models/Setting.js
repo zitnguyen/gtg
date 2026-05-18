@@ -23,6 +23,8 @@ const settingSchema = new mongoose.Schema(
     announcement_text: { type: String, trim: true, default: "" },
     announcement_bg_color: { type: String, trim: true, default: "#ff0000" },
     announcement_text_color: { type: String, trim: true, default: "#ffffff" },
+    /** Toast góc màn hình “vừa mua” (social proof) — Admin bật/tắt */
+    social_proof_toast_enabled: { type: Boolean, default: false },
     publicCms: {
       type: mongoose.Schema.Types.Mixed,
       default: () => ({
@@ -51,7 +53,8 @@ const settingSchema = new mongoose.Schema(
           news: {
             badge: "Tin tức",
             title: "Bản tin mới nhất",
-            description: "Cập nhật thông tin và hoạt động nổi bật của trung tâm.",
+            description:
+              "Cập nhật thông tin và hoạt động nổi bật của trung tâm.",
           },
           testimonials: {
             badge: "Phụ huynh nói gì",

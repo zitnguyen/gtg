@@ -66,6 +66,15 @@ const emitUserOnlineStatus = (userId, isOnline = true) => {
   });
 };
 
+/** Broadcast API mutation metadata to all connected (JWT) sockets. */
+const emitApiCrud = (payload = {}) => {
+  if (!ioInstance) return;
+  ioInstance.emit("api:crud", {
+    ...payload,
+    ts: Date.now(),
+  });
+};
+
 module.exports = {
   setSocketIo,
   getSocketIo,
@@ -74,4 +83,5 @@ module.exports = {
   emitMessageToUsers,
   emitNotificationToAll,
   emitUserOnlineStatus,
+  emitApiCrud,
 };

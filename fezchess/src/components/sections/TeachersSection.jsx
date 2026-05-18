@@ -1,24 +1,29 @@
 import { useState, useEffect } from "react";
 import ScrollReveal from "../common/ScrollReveal";
 import TeacherCard from "../cards/TeacherCard";
-// import teacherService from "../../services/teacherService"; // Using relative path if needed or absolute
-import axiosClient from "../../api/axiosClient"; // Direct use for simplicity or use service if preferred
+import teacherService from "../../services/teacherService";
 import { usePublicCms } from "../../context/PublicCmsContext";
+import { useTheme } from "../../context/ThemeContext";
 
 const TeachersSection = () => {
   const [teachers, setTeachers] = useState([]);
   const [loading, setLoading] = useState(true);
   const { cms } = usePublicCms();
+  const { isDark } = useTheme();
   const section = cms?.home?.teachers || {};
+  const badgeStyle = {
+    backgroundColor: isDark ? "#FFFFFF" : "#000000",
+    color: isDark ? "#000000" : "#FFFFFF",
+  };
 
   useEffect(() => {
     const fetchTeachers = async () => {
       try {
-        // Use the new public endpoint
-        const res = await axiosClient.get('/users/teachers');
-        setTeachers(res);
+        const data = await teacherService.getAll();
+        setTeachers(Array.isArray(data) ? data : []);
       } catch (error) {
         console.error("Failed to fetch teachers", error);
+        setTeachers([]);
       } finally {
         setLoading(false);
       }
@@ -29,29 +34,26 @@ const TeachersSection = () => {
   return (
     <section
       className="py-20 bg-muted"
-      style={{ backgroundColor: section?.sectionBgColor || undefined }}
+      style={{
+        backgroundColor: isDark ? "#000000" : "#FFFFFF",
+      }}
     >
       <div className="container mx-auto px-4">
         {/* Header */}
         <ScrollReveal className="text-center mb-16">
           <span
             className="inline-block px-4 py-2 rounded-full text-sm font-medium mb-4"
-            style={{
-              backgroundColor: section?.badgeBgColor || undefined,
-              color: section?.badgeTextColor || undefined,
-            }}
+            style={badgeStyle}
           >
             {section?.badge || "Đội ngũ"}
           </span>
           <h2
             className="font-display text-3xl md:text-4xl font-bold text-foreground mb-4"
-            style={{ color: section?.titleColor || undefined }}
           >
             {section?.title || "Giáo viên xuất sắc"}
           </h2>
           <p
             className="text-muted-foreground max-w-2xl mx-auto"
-            style={{ color: section?.descriptionColor || undefined }}
           >
             {section?.description ||
               "Đội ngũ giáo viên giàu kinh nghiệm, đam mê và tận tâm với sự phát triển của từng học viên."}
@@ -68,7 +70,10 @@ const TeachersSection = () => {
                   <TeacherCard 
                     name={teacher.fullName}
                     title={teacher.specialization || "Giáo viên cờ vua"}
-                    image={teacher.image || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=face"}
+                    image={
+                      teacher.avatarUrl ||
+                      "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=face"
+                    }
                     experience={`${teacher.experienceYears || 1} năm kinh nghiệm`}
                     specialization={teacher.certification || "Chứng chỉ Sư phạm"}
                     actionButtonBgColor={section?.actionButtonBgColor}

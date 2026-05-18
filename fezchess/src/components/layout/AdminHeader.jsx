@@ -1,199 +1,117 @@
-import React from 'react';
-import { Bell, Home, User, LogOut } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import authService from '../../services/authService';
-import { getRoleLabel } from '../../constants/roleLabel';
-import notificationService from '../../services/notificationService';
-import { debugPlayNotificationSound, initNotificationSound, playNotificationSound } from '../../utils/notificationSound';
+import React, { useEffect, useState } from "react";
+import { Home } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import authService from "../../services/authService";
+import { getDashboardPathByRole } from "../../constants/roleRoutes";
 import ThemeToggle from "../common/ThemeToggle";
+import NotificationBell from "../../features/notifications/components/NotificationBell";
+import NotificationCenter from "../../features/notifications/components/NotificationCenter";
+import { useNotificationCenter } from "../../features/notifications/hooks/useNotificationCenter";
+import { useNotificationSound } from "../../features/notifications/hooks/useNotificationSound";
+import {
+  getRoleNotificationPath,
+  resolveNotificationTarget,
+} from "../../features/notifications/utils/resolveNotificationTarget";
+import { debugPlayNotificationSound } from "../../utils/notificationSound";
+import courseService from "../../services/courseService";
+import UserAccountMenu from "../account/UserAccountMenu";
 
-const AdminHeader = () => {
+/** Tiện ích header portal — theme, home, TB + menu tài khoản */
+export function AdminHeaderActions() {
   const navigate = useNavigate();
   const currentUser = authService.getCurrentUser();
-  const [unreadCount, setUnreadCount] = React.useState(0);
-  const previousUnreadRef = React.useRef(null);
-  const initializedRef = React.useRef(false);
-  const previousLatestUnreadRef = React.useRef(null);
+  const [courseSlugByTitle, setCourseSlugByTitle] = useState({});
+  const notificationCenter = useNotificationCenter({ autoOpenLimit: 8 });
+  useNotificationSound();
 
-  React.useEffect(() => {
-    initNotificationSound();
-  }, []);
+  const notificationsPath = getRoleNotificationPath(currentUser?.role);
+  const dashboardPath = getDashboardPathByRole(currentUser?.role) || "/";
 
-  React.useEffect(() => {
-    let isMounted = true;
-    const getCurrentRole = () => {
-      const role = String(currentUser?.role || '').toLowerCase();
-      return role;
-    };
-    const isRoleAllowedForSound = () => {
-      const role = getCurrentRole();
-      return role === 'teacher' || role === 'parent' || role === 'student';
-    };
-    const shouldPlaySound = () =>
-      document.visibilityState === 'visible' &&
-      document.hasFocus() &&
-      Boolean(currentUser?._id || currentUser?.userId) &&
-      isRoleAllowedForSound();
-
-    const fetchUnreadCount = async () => {
+  useEffect(() => {
+    if (!currentUser?._id && !currentUser?.userId) return undefined;
+    let mounted = true;
+    const loadCourseSlugs = async () => {
       try {
-        const data = await notificationService.getMine({ force: true });
-        if (!isMounted) return;
-
-        const currentUnread = Number(data?.unreadCount || 0);
-        const latestUnreadCreatedAt = data?.latestUnreadCreatedAt || null;
-        setUnreadCount(currentUnread);
-
-        if (!initializedRef.current) {
-          initializedRef.current = true;
-          previousUnreadRef.current = currentUnread;
-          previousLatestUnreadRef.current = latestUnreadCreatedAt;
-          return;
-        }
-
-        const previousUnread = Number(previousUnreadRef.current || 0);
-        const isNewUnread =
-          currentUnread > previousUnread ||
-          (latestUnreadCreatedAt &&
-            previousLatestUnreadRef.current &&
-            new Date(latestUnreadCreatedAt).getTime() >
-              new Date(previousLatestUnreadRef.current).getTime());
-
-        if (isNewUnread && shouldPlaySound()) {
-          playNotificationSound();
-        }
-
-        previousUnreadRef.current = currentUnread;
-        previousLatestUnreadRef.current = latestUnreadCreatedAt;
-        return null;
-      } catch (error) {
-        return error?.response?.status || null;
+        const list = await courseService.getPublishedCourses({});
+        const courses = Array.isArray(list) ? list : [];
+        const map = {};
+        courses.forEach((course) => {
+          const titleKey = String(course?.title || "")
+            .trim()
+            .toLowerCase();
+          const slugValue = String(course?.slug || "").trim();
+          if (titleKey && slugValue) map[titleKey] = slugValue;
+        });
+        if (mounted) setCourseSlugByTitle(map);
+      } catch {
+        if (mounted) setCourseSlugByTitle({});
       }
     };
-
-    const userId = currentUser?._id || currentUser?.userId;
-    if (!userId) {
-      setUnreadCount(0);
-      return () => {
-        isMounted = false;
-      };
-    }
-
-    let timer = null;
-    let stopped = false;
-    const POLL_FOREGROUND_MS = 3000;
-    const POLL_BACKGROUND_MS = 15000;
-    const POLL_RATE_LIMIT_MS = 60000;
-
-    const schedule = (delay) => {
-      if (stopped) return;
-      timer = window.setTimeout(tick, delay);
-    };
-
-    const tick = async () => {
-      const status = await fetchUnreadCount();
-      const isForeground = document.visibilityState === 'visible' && document.hasFocus();
-      const shouldPollSlowly = !isForeground;
-      if (status === 429) {
-        schedule(POLL_RATE_LIMIT_MS);
-      } else if (shouldPollSlowly) {
-        schedule(POLL_BACKGROUND_MS);
-      } else {
-        schedule(POLL_FOREGROUND_MS);
-      }
-    };
-
-    tick();
-
-    const handleWakeUp = () => {
-      if (stopped) return;
-      // Fetch immediately when user comes back to tab/window.
-      fetchUnreadCount();
-    };
-    document.addEventListener("visibilitychange", handleWakeUp);
-    window.addEventListener("focus", handleWakeUp);
-    const unsubscribeRealtime = notificationService.subscribeRealtime(() => {
-      fetchUnreadCount();
-    });
-
+    loadCourseSlugs();
     return () => {
-      isMounted = false;
-      stopped = true;
-      if (timer) {
-        window.clearTimeout(timer);
-      }
-      document.removeEventListener("visibilitychange", handleWakeUp);
-      window.removeEventListener("focus", handleWakeUp);
-      unsubscribeRealtime();
+      mounted = false;
     };
-  }, [currentUser?._id, currentUser?.userId, currentUser?.role]);
+  }, [currentUser?._id, currentUser?.userId]);
 
-  const handleLogout = () => {
-    authService.logout();
-    navigate('/login');
+  const handleOpenNotificationItem = (item) => {
+    const targetPath = resolveNotificationTarget(item, {
+      role: currentUser?.role,
+      basePath: notificationsPath,
+      courseSlugByTitle,
+    });
+    notificationCenter.onClose();
+    if (item?.id && !item.isRead) notificationCenter.onMarkRead(item.id);
+    navigate(targetPath);
   };
 
-  const getNotificationPath = () => {
-    const role = String(currentUser?.role || '').toLowerCase();
-    if (role === 'admin') return '/admin/notifications';
-    if (role === 'teacher') return '/teacher/notifications';
-    if (role === 'parent') return '/parent/notifications';
-    if (role === 'student') return '/student/notifications';
-    return '/';
+  const handleBellDoubleClick = () => {
+    debugPlayNotificationSound().then((ok) => {
+      if (!ok) {
+        alert(
+          "Trình duyệt đang chặn âm thanh. Hãy click bất kỳ vào trang rồi thử lại.",
+        );
+      }
+    });
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 h-16 px-3 sm:px-6 flex items-center justify-end gap-2 sm:gap-4 sticky top-0 z-20">
-        <ThemeToggle />
-        <button
-          onClick={() => navigate('/')}
-          className="p-2 text-gray-400 dark:text-slate-300 hover:text-gray-600 dark:hover:text-white rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
-          title="Về trang chủ website"
-        >
-          <Home size={20} />
-        </button>
-        <button
-          onClick={() => navigate(getNotificationPath())}
-          onDoubleClick={() => {
-            debugPlayNotificationSound().then((ok) => {
-              if (!ok) {
-                alert('Trình duyệt đang chặn âm thanh. Hãy click bất kỳ vào trang rồi thử lại.');
-              }
-            });
-          }}
-          className="p-2 text-gray-400 dark:text-slate-300 hover:text-gray-600 dark:hover:text-white rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors relative"
-          title="Notifications (double-click để test âm thanh)"
-        >
-            <Bell size={20} />
-            {unreadCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 bg-red-500 text-white text-[10px] rounded-full border border-white dark:border-slate-900 flex items-center justify-center">
-                {unreadCount > 99 ? '99+' : unreadCount}
-              </span>
-            )}
-        </button>
-        <div className="h-8 w-[1px] bg-gray-200 dark:bg-slate-700 mx-0 sm:mx-1"></div>
-        <div className="flex items-center gap-1 sm:gap-3">
-            <div className="text-right hidden sm:block">
-                <div className="text-sm font-medium text-gray-900 dark:text-white">
-                  {currentUser?.fullName || currentUser?.username || "User"}
-                </div>
-                <div className="text-xs text-gray-500 dark:text-slate-300">
-                  {getRoleLabel(currentUser?.role)}
-                </div>
-            </div>
-            <div className="w-9 h-9 bg-primary/10 rounded-full flex items-center justify-center text-primary">
-                <User size={20} />
-            </div>
-            <button 
-                onClick={handleLogout}
-                className="p-2 text-gray-400 dark:text-slate-300 hover:text-red-600 rounded-full hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors ml-1"
-                title="Đăng xuất"
-            >
-                <LogOut size={18} />
-            </button>
+    <div className="flex shrink-0 items-center justify-end gap-1.5 sm:gap-2 h-9 max-w-[min(52vw,22rem)]">
+      <ThemeToggle />
+      <Link
+        to={dashboardPath}
+        className="p-2 rounded-lg text-foreground hover:bg-muted transition-colors"
+        title="Về dashboard"
+        aria-label="Về dashboard"
+      >
+        <Home size={20} />
+      </Link>
+      <span onDoubleClick={handleBellDoubleClick} className="inline-flex">
+        <div className="relative" ref={notificationCenter.containerRef}>
+          <NotificationBell
+            unreadCount={notificationCenter.unreadCount}
+            onClick={notificationCenter.onToggle}
+            title="Thông báo (double-click để test âm thanh)"
+          />
+          <NotificationCenter
+            open={notificationCenter.open}
+            items={notificationCenter.items}
+            loading={notificationCenter.loading}
+            unreadCount={notificationCenter.unreadCount}
+            onClose={notificationCenter.onClose}
+            onSelect={handleOpenNotificationItem}
+            onMarkAllRead={notificationCenter.onMarkAllRead}
+            onViewAll={() => {
+              notificationCenter.onClose();
+              navigate(notificationsPath);
+            }}
+          />
         </div>
+      </span>
+
+      <div className="h-8 w-px bg-border mx-0.5 hidden sm:block shrink-0" />
+      <UserAccountMenu />
     </div>
   );
-};
+}
 
-export default AdminHeader;
+export default AdminHeaderActions;

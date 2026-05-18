@@ -40,10 +40,12 @@ const AnnouncementBar = () => {
                 `}
             </style>
             <div 
-                className="w-full max-w-full min-w-0 text-xs md:text-sm font-medium py-1.5 md:py-2 px-3 md:px-4 shadow-sm z-50 relative announcement-marquee-container"
+                className="w-full max-w-full min-w-0 h-11 shrink-0 overflow-x-hidden text-xs md:text-sm font-medium px-3 md:px-4 z-50 relative announcement-marquee-container border-0 flex items-center"
                 style={{ 
                     backgroundColor: settings.announcement_bg_color || "#ff0000", 
-                    color: settings.announcement_text_color || "#ffffff" 
+                    color: settings.announcement_text_color || "#ffffff",
+                    border: "none",
+                    boxShadow: "none",
                 }}
             >
                 <div className="announcement-marquee-content">

@@ -1,8 +1,6 @@
 const Inquiry = require("../models/Inquiry");
 const asyncHandler = require("../middleware/asyncHandler");
-const Notification = require("../models/Notification");
-const NotificationRecipient = require("../models/NotificationRecipient");
-const User = require("../models/User");
+const { notifyAdmins } = require("../modules/notifications/helpers/notifyUsers");
 
 exports.createInquiry = asyncHandler(async (req, res) => {
   const { name, email, phone, message, type } = req.body;
@@ -17,27 +15,14 @@ exports.createInquiry = asyncHandler(async (req, res) => {
 
   await inquiry.save();
 
-  const adminUsers = await User.find({ role: "Admin" }).select("_id");
-  if (adminUsers.length > 0) {
-    const notification = await Notification.create({
-      title: "Có phụ huynh liên hệ mới",
-      content: `Liên hệ mới từ ${name || "Phụ huynh"}${
-        phone ? ` - SĐT: ${phone}` : ""
-      }${type ? ` - Loại: ${type}` : ""}`,
-      createdBy: adminUsers[0]._id,
-    });
-
-    await NotificationRecipient.insertMany(
-      adminUsers.map((admin) => ({
-        notificationId: notification._id,
-        userId: admin._id,
-        roleSnapshot: "Admin",
-        isRead: false,
-        readAt: null,
-      })),
-      { ordered: false },
-    );
-  }
+  await notifyAdmins({
+    title: "Có phụ huynh liên hệ mới",
+    content: `Liên hệ mới từ ${name || "Phụ huynh"}${
+      phone ? ` - SĐT: ${phone}` : ""
+    }${type ? ` - Loại: ${type}` : ""}`,
+    targetPath: "/crm/inquiries",
+    type: "INQUIRY_CREATED",
+  });
 
   res.status(201).json({ message: "Inquiry submitted successfully", inquiry });
 });

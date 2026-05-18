@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axiosClient from '../../../api/axiosClient';
+import inquiryService from '../../../services/inquiryService';
 import { Mail, Phone, MessageSquare, Archive, Trash2 } from 'lucide-react';
 
 const InquiryList = () => {
@@ -12,7 +12,7 @@ const InquiryList = () => {
 
     const fetchInquiries = async () => {
         try {
-            const data = await axiosClient.get('/inquiries');
+            const data = await inquiryService.getAll();
             setInquiries(Array.isArray(data) ? data : []);
         } catch (error) {
             console.error("Error fetching inquiries:", error);
@@ -23,7 +23,7 @@ const InquiryList = () => {
 
     const handleStatusUpdate = async (id, newStatus) => {
         try {
-            await axiosClient.put(`/inquiries/${id}`, { status: newStatus });
+            await inquiryService.update(id, { status: newStatus });
             setInquiries(prev => prev.map(item => 
                 item._id === id ? { ...item, status: newStatus } : item
             ));
@@ -36,7 +36,7 @@ const InquiryList = () => {
     const handleDeleteInquiry = async (id) => {
         if (!window.confirm('Bạn có chắc muốn xóa liên hệ này?')) return;
         try {
-            await axiosClient.delete(`/inquiries/${id}`);
+            await inquiryService.delete(id);
             setInquiries((prev) => prev.filter((item) => item._id !== id));
         } catch (error) {
             console.error("Error deleting inquiry:", error);

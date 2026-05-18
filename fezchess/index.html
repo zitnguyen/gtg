@@ -1,20 +1,39 @@
 <!doctype html>
-<html lang="en">
+<html lang="vi">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>chess-center-admin</title>
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="description" content="Z CHESS – Hệ thống quản lý học viện cờ vua: lớp học, lịch dạy, học liệu, bài tập tương tác và phân tích bằng động cơ Stockfish." />
+    <meta name="theme-color" content="#ffffff" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=DM+Mono:ital,wght@0,400;0,500;1,400&display=swap"
+      rel="stylesheet"
+    />
+    <meta property="og:title" content="Z CHESS – Học viện cờ vua thông minh" />
+    <meta property="og:description" content="Quản lý học viện cờ vua: lớp học, lịch dạy, bài tập tương tác, phân tích Stockfish." />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="vi_VN" />
+    <title>Z CHESS – Học viện cờ vua thông minh</title>
     <script>
       (function () {
-        try {
-          var theme = localStorage.getItem("theme");
-          if (theme === "dark") {
-            document.documentElement.classList.add("dark");
-          } else {
-            document.documentElement.classList.remove("dark");
-          }
-        } catch (_) {}
+        var key = "theme";
+        var theme = localStorage.getItem(key);
+        if (theme !== "light" && theme !== "dark") {
+          theme = window.matchMedia("(prefers-color-scheme: dark)").matches
+            ? "dark"
+            : "light";
+        }
+        var root = document.documentElement;
+        var isDark = theme === "dark";
+        root.classList.toggle("dark", isDark);
+        root.setAttribute("data-theme", theme);
+        root.style.colorScheme = theme;
       })();
     </script>
   </head>

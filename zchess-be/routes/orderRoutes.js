@@ -27,5 +27,11 @@ router.get(
 
 router.get("/:id", protect, orderController.getOrderById);
 router.put("/:id/pay", protect, orderController.updateOrderStatus);
+router.post(
+  "/:id/refund",
+  protect,
+  authorize("Admin"),
+  orderController.refundOrder,
+);
 
 module.exports = router;

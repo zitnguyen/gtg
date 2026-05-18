@@ -11,6 +11,10 @@ exports.createLesson = asyncHandler(async (req, res) => {
   const initialMoves = Array.isArray(req.body?.initialMoves)
     ? req.body.initialMoves.map((m) => String(m || "").trim()).filter(Boolean)
     : [];
+  const rawMoveNotes = Array.isArray(req.body?.initialMoveNotes)
+    ? req.body.initialMoveNotes.map((n) => String(n || "").trim())
+    : [];
+  const initialMoveNotes = initialMoves.map((_, index) => rawMoveNotes[index] || "");
 
   const chapter = await Chapter.findById(chapterId);
   if (!chapter) {
@@ -28,6 +32,9 @@ exports.createLesson = asyncHandler(async (req, res) => {
     initialFen: req.body?.initialFen,
     initialPgn: type === "chess" ? String(req.body?.initialPgn || "") : "",
     initialMoves: type === "chess" ? initialMoves : [],
+    initialMoveNotes: type === "chess" ? initialMoveNotes : [],
+    chessBackgroundUrl: type === "chess" ? String(req.body?.chessBackgroundUrl || "") : "",
+    exerciseMode: type === "chess" ? Boolean(req.body?.exerciseMode) : false,
     duration,
     isFree,
     order,
@@ -41,6 +48,12 @@ exports.updateLesson = asyncHandler(async (req, res) => {
   payload.initialMoves = Array.isArray(payload?.initialMoves)
     ? payload.initialMoves.map((m) => String(m || "").trim()).filter(Boolean)
     : [];
+  payload.initialMoveNotes = Array.isArray(payload?.initialMoveNotes)
+    ? payload.initialMoveNotes.map((n) => String(n || "").trim())
+    : [];
+  payload.initialMoveNotes = payload.initialMoves.map(
+    (_, index) => payload.initialMoveNotes[index] || "",
+  );
   if (payload?.initialPgn != null) {
     payload.initialPgn = String(payload.initialPgn || "");
   }
@@ -48,6 +61,11 @@ exports.updateLesson = asyncHandler(async (req, res) => {
     payload.content = "";
     payload.chessMode = "internal";
     payload.chessPlatform = "internal-board";
+    payload.chessBackgroundUrl = String(payload?.chessBackgroundUrl || "");
+    payload.exerciseMode = Boolean(payload?.exerciseMode);
+  } else {
+    payload.chessBackgroundUrl = "";
+    payload.exerciseMode = false;
   }
   const lesson = await Lesson.findByIdAndUpdate(req.params.id, payload, {
     new: true,

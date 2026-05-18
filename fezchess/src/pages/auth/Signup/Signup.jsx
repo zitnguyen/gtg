@@ -155,7 +155,7 @@ const Signup = () => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 flex justify-center items-center gap-2 disabled:opacity-70"
+            className="w-full py-3 bg-black text-white rounded-xl hover:bg-black/90 flex justify-center items-center gap-2 disabled:opacity-70"
           >
             {loading ? <Loader className="animate-spin" /> : <ArrowRight />}
             {loading ? "Đang xử lý..." : "Đăng ký"}

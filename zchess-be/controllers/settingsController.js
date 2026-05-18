@@ -19,6 +19,7 @@ const DEFAULT_SETTINGS = {
   announcement_text: "",
   announcement_bg_color: "#ff0000",
   announcement_text_color: "#ffffff",
+  social_proof_toast_enabled: false,
   publicCms: {
     theme: {
       fontFamily: "inherit",
@@ -64,12 +65,15 @@ const sanitizePatch = (body = {}) => {
     "announcement_text",
     "announcement_bg_color",
     "announcement_text_color",
+    "social_proof_toast_enabled",
   ];
 
   fields.forEach((field) => {
     if (body[field] !== undefined) {
-      if (field === "announcement_enabled") {
-        patch[field] = Boolean(body[field]);
+      if (field === "announcement_enabled" || field === "social_proof_toast_enabled") {
+        const v = body[field];
+        patch[field] =
+          v === true || v === "true" || v === 1 || v === "1";
       } else {
         patch[field] = String(body[field] ?? "").trim();
       }
@@ -82,11 +86,22 @@ const sanitizePatch = (body = {}) => {
 };
 
 const ensureSingletonSettings = async () => {
-  const settings = await Setting.findOneAndUpdate(
+  let settings = await Setting.findOneAndUpdate(
     { singletonKey: "system" },
     { $setOnInsert: DEFAULT_SETTINGS },
     { new: true, upsert: true, setDefaultsOnInsert: true },
   );
+  // Task: Bản ghi cũ thiếu key — $setOnInsert không bổ sung; refetch sau khi backfill để Mongoose/JSON đúng — Author: DucManh-BlueOC
+  const mig = await Setting.updateOne(
+    {
+      singletonKey: "system",
+      social_proof_toast_enabled: { $exists: false },
+    },
+    { $set: { social_proof_toast_enabled: false } },
+  );
+  if (mig.modifiedCount > 0) {
+    settings = await Setting.findOne({ singletonKey: "system" });
+  }
   return settings;
 };
 
@@ -125,7 +140,8 @@ const mapLegacyHeroToCms = (hero) => {
         primaryButtonBgColor: hero.primaryButtonBgColor || "#2563EB",
         primaryButtonTextColor: hero.primaryButtonTextColor || "#FFFFFF",
         secondaryButtonTextColor: hero.secondaryButtonTextColor || "#0F172A",
-        secondaryButtonBorderColor: hero.secondaryButtonBorderColor || "#CBD5E1",
+        secondaryButtonBorderColor:
+          hero.secondaryButtonBorderColor || "#CBD5E1",
         fontFamily: hero.fontFamily || "inherit",
       },
     },
@@ -141,11 +157,76 @@ const ensurePublicCms = async (settingsDoc) => {
   return settingsDoc.publicCms;
 };
 
-exports.getSettings = asyncHandler(async (_req, res) => {
+/**
+ * Thông tin CK/QR: không đưa vào payload hoàn toàn public (khách chưa đăng nhập),
+ * nhưng merge cho user đã đăng nhập để trang checkout lấy được STK — Author: DucManh-BlueOC
+ */
+const CHECKOUT_FIELDS_FOR_AUTH = [
+  "bankName",
+  "bankAccountNumber",
+  "bankAccountName",
+  "paymentQrUrl",
+  "paymentTransferPrefix",
+];
+
+const mergeCheckoutFieldsForAuth = (plain, settingsDoc) => {
+  if (!plain || !settingsDoc) return plain;
+  const full =
+    settingsDoc.toObject?.({ flattenMaps: true }) ?? settingsDoc;
+  CHECKOUT_FIELDS_FOR_AUTH.forEach((field) => {
+    if (full[field] !== undefined) plain[field] = full[field];
+  });
+  return plain;
+};
+
+/**
+ * Public-safe subset of system settings.
+ *
+ * Bí mật vận hành (số tài khoản, prefix chuyển khoản, QR thanh toán,
+ * Public CMS draft) chỉ dành cho Admin.
+ */
+const PUBLIC_SETTING_FIELDS = [
+  "logoUrl",
+  "centerName",
+  "address",
+  "hotline",
+  "email",
+  "workingHours",
+  "announcement_enabled",
+  "announcement_text",
+  "announcement_bg_color",
+  "announcement_text_color",
+];
+
+const pickPublicSettings = (settings) => {
+  if (!settings) return {};
+  const plain = settings.toObject ? settings.toObject() : settings;
+  const result = {};
+  PUBLIC_SETTING_FIELDS.forEach((field) => {
+    if (plain[field] !== undefined) result[field] = plain[field];
+  });
+  // Cờ toast: luôn có trong JSON public (kể cả DB chưa có field)
+  result.social_proof_toast_enabled = Boolean(
+    plain.social_proof_toast_enabled,
+  );
+  return result;
+};
+
+exports.getSettings = asyncHandler(async (req, res) => {
   const settings = await ensureSingletonSettings();
+  const isAdmin = String(req.user?.role || "").toLowerCase() === "admin";
+  const payload = isAdmin ? settings : pickPublicSettings(settings);
+  const plain = payload?.toObject ? payload.toObject({ flattenMaps: true }) : payload;
+  if (plain && typeof plain === "object") {
+    plain.social_proof_toast_enabled = Boolean(plain.social_proof_toast_enabled);
+  }
+  if (!isAdmin && req.user?._id && plain && typeof plain === "object") {
+    mergeCheckoutFieldsForAuth(plain, settings);
+  }
+  res.set("Cache-Control", "private, no-store, no-cache, must-revalidate");
   res.json({
     success: true,
-    data: settings,
+    data: plain,
   });
 });
 
@@ -157,10 +238,18 @@ exports.updateSettings = asyncHandler(async (req, res) => {
     { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true },
   );
 
+  const data = settings?.toObject
+    ? settings.toObject({ flattenMaps: true })
+    : settings;
+  if (data && typeof data === "object") {
+    data.social_proof_toast_enabled = Boolean(data.social_proof_toast_enabled);
+  }
+
+  res.set("Cache-Control", "private, no-store, no-cache, must-revalidate");
   res.json({
     success: true,
     message: "Cập nhật cấu hình hệ thống thành công",
-    data: settings,
+    data,
   });
 });
 
@@ -197,25 +286,46 @@ exports.updatePublicCms = asyncHandler(async (req, res) => {
     ...incoming,
     theme: { ...(previous.theme || {}), ...(incoming.theme || {}) },
     home: { ...(previous.home || {}), ...(incoming.home || {}) },
-    courseStore: { ...(previous.courseStore || {}), ...(incoming.courseStore || {}) },
-    courseDetail: { ...(previous.courseDetail || {}), ...(incoming.courseDetail || {}) },
-    teachersPage: { ...(previous.teachersPage || {}), ...(incoming.teachersPage || {}) },
+    courseStore: {
+      ...(previous.courseStore || {}),
+      ...(incoming.courseStore || {}),
+    },
+    courseDetail: {
+      ...(previous.courseDetail || {}),
+      ...(incoming.courseDetail || {}),
+    },
+    teachersPage: {
+      ...(previous.teachersPage || {}),
+      ...(incoming.teachersPage || {}),
+    },
     newsPage: { ...(previous.newsPage || {}), ...(incoming.newsPage || {}) },
-    contactPage: { ...(previous.contactPage || {}), ...(incoming.contactPage || {}) },
+    contactPage: {
+      ...(previous.contactPage || {}),
+      ...(incoming.contactPage || {}),
+    },
   };
   if (incoming.home) {
     settings.publicCms.home = {
       ...(previous.home || {}),
       ...(incoming.home || {}),
       hero: { ...(previous.home?.hero || {}), ...(incoming.home?.hero || {}) },
-      courses: { ...(previous.home?.courses || {}), ...(incoming.home?.courses || {}) },
-      teachers: { ...(previous.home?.teachers || {}), ...(incoming.home?.teachers || {}) },
+      courses: {
+        ...(previous.home?.courses || {}),
+        ...(incoming.home?.courses || {}),
+      },
+      teachers: {
+        ...(previous.home?.teachers || {}),
+        ...(incoming.home?.teachers || {}),
+      },
       news: { ...(previous.home?.news || {}), ...(incoming.home?.news || {}) },
       testimonials: {
         ...(previous.home?.testimonials || {}),
         ...(incoming.home?.testimonials || {}),
       },
-      contact: { ...(previous.home?.contact || {}), ...(incoming.home?.contact || {}) },
+      contact: {
+        ...(previous.home?.contact || {}),
+        ...(incoming.home?.contact || {}),
+      },
       cta: { ...(previous.home?.cta || {}), ...(incoming.home?.cta || {}) },
     };
   }

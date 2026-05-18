@@ -5,6 +5,8 @@ const { protect, authorize } = require("../middleware/authMiddleware");
 
 // Public routes
 router.get("/me", protect, userController.getMe);
+router.patch("/me", protect, userController.updateMe);
+router.post("/me/change-password", protect, userController.changeMyPassword);
 router.get("/teachers", userController.getTeachers); // Get all teachers
 router.get("/teachers/:id", userController.getTeacherById); // Get teacher detail (public)
 

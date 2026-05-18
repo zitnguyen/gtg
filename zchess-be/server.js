@@ -10,6 +10,7 @@ const jwt = require("jsonwebtoken");
 const app = require("./app");
 const seedAdmin = require("./seedAdmin");
 const { setSocketIo, buildUserRoom } = require("./realtime/socketHub");
+const { attachLivePlayHandlers } = require("./realtime/livePlayHandler");
 
 const PORT = process.env.PORT || 5000;
 
@@ -105,6 +106,8 @@ mongoose
             ts: Date.now(),
           });
         });
+
+        attachLivePlayHandlers(io, socket);
 
         // Handle disconnect
         socket.on("disconnect", () => {

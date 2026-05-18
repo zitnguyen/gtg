@@ -2,6 +2,12 @@ import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import teacherService from "../../services/teacherService";
 
+const TRAINING_LEVEL_LABELS = {
+  beginner: "Huấn luyện cơ bản",
+  intermediate: "Huấn luyện trung cấp",
+  advanced: "Huấn luyện nâng cao",
+};
+
 const TeacherDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -60,8 +66,7 @@ const TeacherDetailPage = () => {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
             <div className="flex items-center gap-4 mb-6">
               <div className="w-20 h-20 rounded-full overflow-hidden bg-gray-100 border border-gray-100">
                 {teacher.avatarUrl ? (
@@ -81,18 +86,6 @@ const TeacherDetailPage = () => {
                 <div className="text-sm text-gray-500">{teacher.specialization || "Giáo viên"}</div>
               </div>
             </div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Thông tin tài khoản</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-              <div>
-                <div className="text-gray-500">Username</div>
-                <div className="font-medium text-gray-900">{teacher.username || "-"}</div>
-              </div>
-              <div>
-                <div className="text-gray-500">Email</div>
-                <div className="font-medium text-gray-900">{teacher.email || "-"}</div>
-              </div>
-            </div>
-
             <h2 className="text-lg font-semibold text-gray-900 mt-8 mb-4">
               Thông tin cá nhân & chuyên môn
             </h2>
@@ -110,6 +103,12 @@ const TeacherDetailPage = () => {
                 <div className="font-medium text-gray-900">{teacher.specialization || "-"}</div>
               </div>
               <div>
+                <div className="text-gray-500">Cấp độ huấn luyện</div>
+                <div className="font-medium text-gray-900">
+                  {TRAINING_LEVEL_LABELS[teacher.trainingLevel] || "-"}
+                </div>
+              </div>
+              <div>
                 <div className="text-gray-500">Năm kinh nghiệm</div>
                 <div className="font-medium text-gray-900">{teacher.experienceYears || 0}</div>
               </div>
@@ -118,25 +117,6 @@ const TeacherDetailPage = () => {
                 <div className="font-medium text-gray-900">{teacher.certificates || "-"}</div>
               </div>
             </div>
-          </div>
-
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Lớp đang dạy</h2>
-            <div className="text-sm text-gray-600 mb-3">Tổng số lớp: {teacher.classCount || 0}</div>
-            <div className="space-y-2">
-              {(teacher.classes || []).map((item) => (
-                <div key={item._id} className="p-3 rounded-lg border border-gray-100 bg-gray-50">
-                  <div className="font-medium text-gray-900">{item.className || "-"}</div>
-                  <div className="text-xs text-gray-500 mt-1">
-                    {item.schedule || "Chưa có lịch"} - {item.status || "Pending"}
-                  </div>
-                </div>
-              ))}
-              {(teacher.classes || []).length === 0 && (
-                <div className="text-sm text-gray-500">Giáo viên chưa được phân lớp.</div>
-              )}
-            </div>
-          </div>
         </div>
       </div>
     </div>

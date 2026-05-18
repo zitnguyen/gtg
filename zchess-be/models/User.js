@@ -46,6 +46,13 @@ const userSchema = new mongoose.Schema(
       enum: ["Admin", "Parent", "Student", "Teacher"],
       default: "Parent",
     },
+    /** Tài khoản Student đăng nhập — trỏ tới hồ sơ học viên (để đọc ghi danh / tiến độ an toàn). */
+    linkedStudentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Student",
+      default: null,
+      index: true,
+    },
     isOnline: {
       type: Boolean,
       default: false,
@@ -55,6 +62,12 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null,
       index: true,
+    },
+    /** Elo cờ nhanh / đối kháng — khởi điểm 100 (tương tự ý tưởng rating Lichess) */
+    elo: {
+      type: Number,
+      default: 100,
+      min: 100,
     },
   },
   {

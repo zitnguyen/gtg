@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Search, FileText, Trash2, Download } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Search, FileText, Trash2, Download, Layers } from 'lucide-react';
 import progressService from '../../../services/progressService';
 import authService from '../../../services/authService';
 import studentService from '../../../services/studentService';
@@ -97,11 +97,20 @@ const ProgressList = () => {
 
   return (
     <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-center mb-6 gap-4">
         <div>
            <h1 className="text-2xl font-bold text-gray-900">Phiếu Học Tập</h1>
            <p className="text-gray-500">Quản lý và theo dõi quá trình học tập của học viên</p>
         </div>
+        {isAdmin && (
+          <Link
+            to="/admin/progress-lesson-templates"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-primary/30 text-primary bg-primary/5 hover:bg-primary/10 text-sm font-medium shrink-0"
+          >
+            <Layers className="w-4 h-4" />
+            Mẫu nội dung học
+          </Link>
+        )}
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">

@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import axiosClient from '../../../../api/axiosClient';
 import courseService from '../../../../services/courseService';
 import { Plus, GripVertical, Edit2, Trash, ChevronDown, ChevronRight, Video, FileText } from 'lucide-react';
 import LessonManager from './LessonManager';
@@ -23,11 +22,11 @@ const ChapterManager = ({ courseId }) => {
         try {
             setLoading(true);
             setError('');
-            const response = await courseService.getCourseById(courseId);
-            setChapters(Array.isArray(response?.chapters) ? response.chapters : []);
+            const response = await courseService.getChaptersByCourse(courseId);
+            setChapters(Array.isArray(response) ? response : []);
         } catch (error) {
             console.error("Error fetching curriculum:", error);
-            setError(error?.response?.data?.message || "Không thể tải chương trình học.");
+            setError(error?.apiMessage || error?.response?.data?.message || "Không thể tải chương trình học.");
         } finally {
             setLoading(false);
         }
@@ -37,8 +36,8 @@ const ChapterManager = ({ courseId }) => {
         if (!newChapterTitle.trim()) return;
         try {
             setError('');
-            await axiosClient.post('/chapters', { 
-                title: newChapterTitle, 
+            await courseService.addChapter({
+                title: newChapterTitle,
                 courseId: courseId
             });
             
@@ -47,7 +46,7 @@ const ChapterManager = ({ courseId }) => {
             fetchCurriculum(); // Refresh
         } catch (error) {
             console.error("Error adding chapter:", error);
-            const msg = error?.response?.data?.message || "Lỗi thêm chương mới";
+            const msg = error?.apiMessage || error?.response?.data?.message || "Lỗi thêm chương mới";
             setError(msg);
             alert(msg);
         }
@@ -56,11 +55,11 @@ const ChapterManager = ({ courseId }) => {
     const deleteChapter = async (chapterId) => {
         if (!window.confirm("Xóa chương này sẽ xóa toàn bộ bài học bên trong?")) return;
         try {
-            await axiosClient.delete(`/chapters/${chapterId}`);
+            await courseService.deleteChapter(chapterId);
             fetchCurriculum();
         } catch (error) {
             console.error(error);
-            const msg = error?.response?.data?.message || "Lỗi xóa chương";
+            const msg = error?.apiMessage || error?.response?.data?.message || "Lỗi xóa chương";
             setError(msg);
             alert(msg);
         }
@@ -85,14 +84,14 @@ const ChapterManager = ({ courseId }) => {
         }
         try {
             setError('');
-            await axiosClient.put(`/chapters/${editingChapterId}`, {
+            await courseService.updateChapter(editingChapterId, {
                 title: editingChapterTitle.trim(),
             });
             cancelEditChapter();
             fetchCurriculum();
         } catch (error) {
             console.error(error);
-            const msg = error?.response?.data?.message || "Lỗi cập nhật tên chương";
+            const msg = error?.apiMessage || error?.response?.data?.message || "Lỗi cập nhật tên chương";
             setError(msg);
             alert(msg);
         }

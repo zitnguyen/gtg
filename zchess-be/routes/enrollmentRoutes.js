@@ -27,7 +27,7 @@ router.get(
 router.get(
   "/student/:studentId",
   protect,
-  authorize("Admin", "Teacher", "Parent"),
+  authorize("Admin", "Teacher", "Parent", "Student"),
   validateObjectIdParam("studentId"),
   enrollmentController.getStudentEnrollments,
 );

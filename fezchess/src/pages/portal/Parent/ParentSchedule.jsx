@@ -1,35 +1,51 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import scheduleService from '../../../services/scheduleService';
-import { Calendar, Clock, ArrowLeft } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import authService from '../../../services/authService';
+import { useSearchParams } from 'react-router-dom';
 
 const ParentSchedule = () => {
-    const navigate = useNavigate();
-    const [classSchedules, setClassSchedules] = useState([]);
+    const [searchParams] = useSearchParams();
+    const focusedStudentId = searchParams.get('studentId') || '';
+    const [allSchedules, setAllSchedules] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [errorMessage, setErrorMessage] = useState('');
+    // eslint-disable-next-line no-unused-vars
     const [weekOffset, setWeekOffset] = useState(0);
 
-    const user = JSON.parse(localStorage.getItem('user'));
+    const user = authService.getCurrentUser();
 
     useEffect(() => {
         if (!user || user.role !== 'Parent') {
-             // Basic protection, though strict routing checks are better
-             return;
+            return;
         }
         fetchSchedules();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const fetchSchedules = async () => {
         try {
             setLoading(true);
+            setErrorMessage('');
             const schedules = await scheduleService.getAll();
-            setClassSchedules(Array.isArray(schedules) ? schedules : []);
+            setAllSchedules(Array.isArray(schedules) ? schedules : []);
         } catch (error) {
-            console.error("Failed to fetch children", error);
+            console.error('Failed to fetch schedules', error);
+            setErrorMessage(
+                error?.response?.data?.message || 'Không tải được lịch học. Vui lòng thử lại.',
+            );
         } finally {
             setLoading(false);
         }
     };
+
+    // Lọc theo studentId trên client; backend đã scope theo parent qua scheduleController.
+    const classSchedules = useMemo(() => {
+        if (!focusedStudentId) return allSchedules;
+        return allSchedules.filter((item) => {
+            const ids = Array.isArray(item?.studentIds) ? item.studentIds : [];
+            return ids.some((s) => String(s?._id || s) === String(focusedStudentId));
+        });
+    }, [allSchedules, focusedStudentId]);
 
     const getDaysInView = () => {
         const today = new Date();
@@ -86,6 +102,41 @@ const ParentSchedule = () => {
     let activeHours = Array.from(activeHoursSet).sort((a, b) => a - b);
 
     if (loading) return <div style={{padding: '40px', textAlign: 'center'}}>Đang tải lịch học...</div>;
+    if (errorMessage) {
+        return (
+            <div style={{ maxWidth: '800px', margin: '40px auto', padding: '20px' }}>
+                <div
+                    role="alert"
+                    style={{
+                        background: '#FEF2F2',
+                        border: '1px solid #FECACA',
+                        color: '#B91C1C',
+                        borderRadius: '8px',
+                        padding: '16px',
+                        textAlign: 'center',
+                    }}
+                >
+                    <p style={{ fontWeight: 600, marginBottom: 8 }}>Không tải được lịch học</p>
+                    <p style={{ fontSize: 14 }}>{errorMessage}</p>
+                    <button
+                        type="button"
+                        onClick={fetchSchedules}
+                        style={{
+                            marginTop: 12,
+                            padding: '8px 16px',
+                            background: '#2563EB',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: 6,
+                            cursor: 'pointer',
+                        }}
+                    >
+                        Thử lại
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '20px' }}>

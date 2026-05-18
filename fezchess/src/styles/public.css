@@ -1,14 +1,24 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
 :root {
-  --p-primary: #0F172A; /* Slate 900 */
-  --p-secondary: #334155; /* Slate 700 */
-  --p-accent: #2563EB; /* Blue 600 */
-  --p-accent-dark: #1D4ED8;
-  --p-bg: #F8FAFC; /* Slate 50 */
-  --p-white: #FFFFFF;
-  --p-text: #1E293B;
-  --p-text-light: #64748B;
+  --color-primary: #0F172A; /* Slate 900 */
+  --color-secondary: #334155; /* Slate 700 */
+  --color-accent: #2563EB; /* Blue 600 */
+  --color-accent-strong: #1D4ED8;
+  --color-bg: #F8FAFC; /* Slate 50 */
+  --color-white: #FFFFFF;
+  --color-text: #1E293B;
+  --color-text-muted: #64748B;
+
+  /* Legacy aliases */
+  --p-primary: var(--color-primary);
+  --p-secondary: var(--color-secondary);
+  --p-accent: var(--color-accent);
+  --p-accent-strong: var(--color-accent-strong);
+  --p-bg: var(--color-bg);
+  --p-white: var(--color-white);
+  --p-text: var(--color-text);
+  --p-text-light: var(--color-text-muted);
   
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
@@ -214,7 +224,7 @@ body {
     box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.4);
 }
 .btn-hero:hover {
-    background: var(--p-accent-dark);
+    background: var(--p-accent-strong);
     transform: translateY(-2px);
     box-shadow: 0 20px 25px -5px rgba(37, 99, 235, 0.5);
 }
@@ -466,4 +476,58 @@ body {
     .hero-grid { grid-template-columns: 1fr; }
     .feature-cards { grid-template-columns: 1fr; }
     .stats-grid { grid-template-columns: 1fr 1fr; }
+}
+
+/* Dark mode (Tailwind class `dark` on <html>) */
+html.dark,
+html[data-theme="dark"] {
+  --color-primary: #f8fafc;
+  --color-secondary: #cbd5e1;
+  --color-accent: #60a5fa;
+  --color-accent-strong: #3b82f6;
+  --color-bg: #0f172a;
+  --color-white: #1e293b;
+  --color-text: #e2e8f0;
+  --color-text-muted: #94a3b8;
+
+  --p-primary: var(--color-primary);
+  --p-secondary: var(--color-secondary);
+  --p-accent: var(--color-accent);
+  --p-accent-strong: var(--color-accent-strong);
+  --p-bg: var(--color-bg);
+  --p-white: var(--color-white);
+  --p-text: var(--color-text);
+  --p-text-light: var(--color-text-muted);
+}
+
+html.dark body,
+html[data-theme="dark"] body {
+  color: var(--p-text);
+  background-color: var(--p-bg);
+}
+
+html.dark .public-header,
+html[data-theme="dark"] .public-header {
+  background: rgba(15, 23, 42, 0.88);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+html.dark .btn-ghost:hover,
+html[data-theme="dark"] .btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--p-primary);
+}
+
+html.dark .hero-premium,
+html[data-theme="dark"] .hero-premium {
+  background:
+    radial-gradient(circle at top right, #1e293b, transparent),
+    #0f172a;
+}
+
+html.dark .hero-badge,
+html[data-theme="dark"] .hero-badge {
+  background: #1e3a5f;
+  border-color: #334155;
+  color: #93c5fd;
 }

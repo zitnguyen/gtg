@@ -137,7 +137,7 @@ const Schedule = () => {
 
 
     return (
-        <div className="h-[calc(100vh-theme(spacing.20))] md:h-[calc(100vh-theme(spacing.24))] flex flex-col space-y-3 md:space-y-4">
+        <div className="min-h-[calc(100dvh-theme(spacing.20))] md:min-h-[calc(100vh-theme(spacing.24))] flex flex-col space-y-3 md:space-y-4">
              {/* Header Section */}
              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white p-4 rounded-xl md:rounded-2xl shadow-sm border border-gray-100 flex-shrink-0">
                 <div className="flex items-center justify-between">
@@ -198,7 +198,7 @@ const Schedule = () => {
                             key={index}
                             onClick={() => setSelectedDayIndex(index)}
                             className={`
-                                flex-shrink-0 flex flex-col items-center justify-center w-14 h-16 mx-1 rounded-xl transition-all
+                                flex-shrink-0 flex flex-col items-center justify-center w-12 h-16 mx-1 rounded-xl transition-all
                                 ${isSelected ? 'bg-primary text-white shadow-md shadow-primary/20 scale-105' : 'bg-transparent text-gray-600 hover:bg-gray-50'}
                                 ${isToday && !isSelected ? 'ring-1 ring-primary/50 bg-primary/5' : ''}
                             `}
@@ -215,7 +215,7 @@ const Schedule = () => {
             </div>
 
             {/* Mobile Agenda View */}
-            <div className="md:hidden flex-1 overflow-y-auto bg-white rounded-xl shadow-sm border border-gray-200 pb-20">
+            <div className="md:hidden flex-1 overflow-y-auto bg-white rounded-xl shadow-sm border border-gray-200 pb-24">
                  {loading ? (
                     <div className="py-12 flex flex-col items-center justify-center text-gray-400">
                         <Loader2 className="animate-spin mb-3 text-primary" size={32} />

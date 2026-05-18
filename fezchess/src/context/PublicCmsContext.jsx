@@ -1,5 +1,12 @@
 /* eslint-disable react-refresh/only-export-components */
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import publicCmsService from "../services/publicCmsService";
 
 const defaultCms = {
@@ -28,7 +35,7 @@ const defaultCms = {
   contactPage: {},
 };
 
-const PublicCmsContext = createContext({
+export const PublicCmsContext = createContext({
   cms: defaultCms,
   loading: true,
   refreshCms: async () => {},
@@ -39,9 +46,10 @@ export const PublicCmsProvider = ({ children }) => {
   const [cms, setCms] = useState(defaultCms);
   const [loading, setLoading] = useState(true);
   const setCmsOptimistic = useCallback((updater) => {
-    setCms((prev) => (typeof updater === "function" ? updater(prev) : { ...prev, ...updater }));
+    setCms((prev) =>
+      typeof updater === "function" ? updater(prev) : { ...prev, ...updater },
+    );
   }, []);
-
 
   const refreshCms = useCallback(async () => {
     try {
@@ -62,7 +70,11 @@ export const PublicCmsProvider = ({ children }) => {
     () => ({ cms, loading, refreshCms, setCmsOptimistic }),
     [cms, loading, refreshCms, setCmsOptimistic],
   );
-  return <PublicCmsContext.Provider value={value}>{children}</PublicCmsContext.Provider>;
+  return (
+    <PublicCmsContext.Provider value={value}>
+      {children}
+    </PublicCmsContext.Provider>
+  );
 };
 
 export const usePublicCms = () => useContext(PublicCmsContext);

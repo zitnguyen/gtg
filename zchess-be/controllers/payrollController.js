@@ -8,6 +8,7 @@ const PDFDocument = require("pdfkit");
 const { PassThrough } = require("stream");
 const fs = require("fs");
 const path = require("path");
+const payrollService = require("../modules/payroll/services/payrollService");
 
 const toMinutes = (value) => {
   const [h, m] = String(value || "")
@@ -32,11 +33,75 @@ const toTeacherSessionDto = (log) => ({
   startTime: log.startTime,
   endTime: log.endTime,
   durationHours: log.durationHours,
+  salary: log.salary,
+  deductionAmount: Number(log.deductionAmount || 0),
+  deductionNote: log.deductionNote || "",
+  bonusAmount: Number(log.bonusAmount || 0),
+  bonusNote: log.bonusNote || "",
+  otherCostAmount: Number(log.otherCostAmount || 0),
+  otherCostNote: log.otherCostNote || "",
   note: log.note || "",
   status: log.status,
   createdAt: log.createdAt,
   updatedAt: log.updatedAt,
 });
+
+const normalizeHeader = (value) =>
+  String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+
+const normalizeLookupText = (value) =>
+  String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+
+const excelDateToJsDate = (value) => {
+  if (!value) return null;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+  if (typeof value === "number") {
+    const date = new Date(Math.round((value - 25569) * 86400 * 1000));
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const parseImportDate = (value) => {
+  const date = excelDateToJsDate(value);
+  if (!date) return null;
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+};
+
+const normalizeTimeText = (value) => {
+  if (value == null) return "";
+  const raw = String(value).trim();
+  if (!raw) return "";
+  if (/^\d{1,2}:\d{2}$/.test(raw)) {
+    const [h, m] = raw.split(":").map(Number);
+    if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
+      return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+    }
+  }
+  const maybeDate = excelDateToJsDate(value);
+  if (maybeDate) {
+    return `${String(maybeDate.getHours()).padStart(2, "0")}:${String(
+      maybeDate.getMinutes(),
+    ).padStart(2, "0")}`;
+  }
+  return raw;
+};
+
+const parseSalaryValue = (value) => {
+  if (value === null || value === undefined || value === "") return null;
+  const normalized = String(value).replace(/[, ]/g, "");
+  const num = Number(normalized);
+  return Number.isFinite(num) ? num : NaN;
+};
 
 const parseMonthYear = (month, year) => {
   const m = Number(month);
@@ -112,324 +177,453 @@ const resolveLogoLocalPath = (logoUrl) => {
 };
 
 exports.createTeacherSession = asyncHandler(async (req, res) => {
-  const classId = req.body.class_id || req.body.classId;
-  const date = req.body.date;
-  const startTime = req.body.start_time || req.body.startTime;
-  const endTime = req.body.end_time || req.body.endTime;
-  const note = req.body.note || "";
-
-  if (req.body.salary !== undefined) {
-    return res
-      .status(400)
-      .json({ message: "Teacher không được phép nhập lương" });
-  }
-  if (!classId || !date || !startTime || !endTime) {
-    return res.status(400).json({ message: "Thiếu thông tin ca dạy bắt buộc" });
-  }
-
-  const ownClass = await Class.exists({
-    _id: classId,
-    teacherId: req.user._id,
+  const session = await payrollService.createTeacherSession({
+    user: req.user,
+    body: req.body,
   });
-  if (!ownClass) {
-    return res
-      .status(403)
-      .json({ message: "Bạn chỉ được tạo ca dạy cho lớp của mình" });
-  }
-
-  const durationHours = computeDurationHours(startTime, endTime);
-  if (!durationHours || durationHours <= 0) {
-    return res
-      .status(400)
-      .json({ message: "start_time / end_time không hợp lệ" });
-  }
-
-  const session = await TeachingLog.create({
-    classId,
-    teacherId: req.user._id,
-    date: new Date(date),
-    startTime,
-    endTime,
-    durationHours,
-    note,
-    salary: null,
-    status: "Pending",
-    createdBy: req.user._id,
-  });
-
-  const populated = await TeachingLog.findById(session._id)
-    .populate("classId", "className schedule")
-    .populate("teacherId", "fullName username");
-
-  return res.status(201).json(toTeacherSessionDto(populated));
+  return res.status(201).json(session);
 });
 
 exports.createAdminSession = asyncHandler(async (req, res) => {
-  const {
-    teacherId,
-    classId,
-    date,
-    startTime,
-    endTime,
-    note = "",
-    salary,
-  } = req.body || {};
-  if (!teacherId || !classId || !date || !startTime || !endTime) {
+  const session = await payrollService.createAdminSession({
+    user: req.user,
+    body: req.body,
+  });
+  return res.status(201).json(session);
+});
+
+exports.importPayrollExcel = asyncHandler(async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ message: "Vui lòng chọn file Excel để import" });
+  }
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(req.file.buffer);
+  const sheet = workbook.worksheets[0];
+  if (!sheet || sheet.rowCount < 2) {
+    return res.status(400).json({ message: "File Excel không có dữ liệu hợp lệ" });
+  }
+
+  const headerRow = sheet.getRow(1);
+  const headerMap = {};
+  headerRow.eachCell((cell, colNumber) => {
+    const key = normalizeHeader(cell.value);
+    if (key) headerMap[key] = colNumber;
+  });
+
+  const pickColumn = (...aliases) => {
+    for (const alias of aliases) {
+      const found = headerMap[normalizeHeader(alias)];
+      if (found) return found;
+    }
+    return null;
+  };
+
+  const teacherIdCol = pickColumn("teacherId");
+  const teacherNameCol = pickColumn(
+    "teacherName",
+    "teacher",
+    "giao vien",
+    "ten giao vien",
+  );
+  const classObjectIdCol = pickColumn("classObjectId", "classObjectID", "classMongoId");
+  const classCodeCol = pickColumn("classId", "classCode", "ma lop");
+  const classNameCol = pickColumn("className", "class", "lop", "ten lop");
+  const dateCol = pickColumn("date", "ngay");
+  const startCol = pickColumn("startTime", "start", "gio bat dau", "bat dau");
+  const endCol = pickColumn("endTime", "end", "gio ket thuc", "ket thuc");
+  const salaryCol = pickColumn("salary", "luong");
+  const bonusAmountCol = pickColumn("bonusAmount", "bonus", "thuong");
+  const bonusNoteCol = pickColumn("bonusNote", "bonusReason", "ghichuthuong");
+  const deductionAmountCol = pickColumn(
+    "deductionAmount",
+    "deduction",
+    "penalty",
+    "fee",
+    "phatphi",
+  );
+  const deductionNoteCol = pickColumn(
+    "deductionNote",
+    "deductionReason",
+    "penaltyNote",
+    "ghichuphatphi",
+  );
+  const otherCostAmountCol = pickColumn(
+    "otherCostAmount",
+    "otherCost",
+    "chiPhiKhac",
+  );
+  const otherCostNoteCol = pickColumn(
+    "otherCostNote",
+    "otherCostReason",
+    "ghichuchiphikhac",
+  );
+  const noteCol = pickColumn("note", "ghi chu");
+
+  if (
+    (!teacherIdCol && !teacherNameCol) ||
+    (!classObjectIdCol && !classCodeCol && !classNameCol) ||
+    !dateCol ||
+    !startCol ||
+    !endCol
+  ) {
     return res.status(400).json({
-      message: "Thiếu teacherId, classId, date, startTime hoặc endTime",
+      message:
+        "Thiếu cột bắt buộc. Cần có teacherName (hoặc teacherId), className/classId, date, startTime, endTime",
     });
   }
 
-  const teacher = await User.findOne({
-    _id: teacherId,
-    role: "Teacher",
-  }).select("_id");
-  if (!teacher) {
-    return res.status(404).json({ message: "Không tìm thấy giáo viên" });
-  }
-  const classDoc = await Class.findById(classId).select("_id teacherId");
-  if (!classDoc) {
-    return res.status(404).json({ message: "Không tìm thấy lớp học" });
-  }
-  if (String(classDoc.teacherId) !== String(teacherId)) {
-    return res
-      .status(400)
-      .json({ message: "Lớp học không thuộc giáo viên đã chọn" });
+  const rows = [];
+  for (let rowNumber = 2; rowNumber <= sheet.rowCount; rowNumber += 1) {
+    const row = sheet.getRow(rowNumber);
+    const teacherId = teacherIdCol
+      ? String(row.getCell(teacherIdCol).value || "").trim()
+      : "";
+    const teacherName = teacherNameCol
+      ? String(row.getCell(teacherNameCol).value || "").trim()
+      : "";
+    const classObjectId = classObjectIdCol
+      ? String(row.getCell(classObjectIdCol).value || "").trim()
+      : "";
+    const classCode = classCodeCol
+      ? String(row.getCell(classCodeCol).value || "").trim()
+      : "";
+    const className = classNameCol
+      ? String(row.getCell(classNameCol).value || "").trim()
+      : "";
+    const dateValue = row.getCell(dateCol).value;
+    const startTimeRaw = row.getCell(startCol).value;
+    const endTimeRaw = row.getCell(endCol).value;
+    const salaryValue = salaryCol ? row.getCell(salaryCol).value : null;
+    const bonusAmountValue = bonusAmountCol ? row.getCell(bonusAmountCol).value : 0;
+    const bonusNoteValue = bonusNoteCol ? row.getCell(bonusNoteCol).value : "";
+    const deductionAmountValue = deductionAmountCol
+      ? row.getCell(deductionAmountCol).value
+      : 0;
+    const deductionNoteValue = deductionNoteCol
+      ? row.getCell(deductionNoteCol).value
+      : "";
+    const otherCostAmountValue = otherCostAmountCol
+      ? row.getCell(otherCostAmountCol).value
+      : 0;
+    const otherCostNoteValue = otherCostNoteCol
+      ? row.getCell(otherCostNoteCol).value
+      : "";
+    const noteValue = noteCol ? row.getCell(noteCol).value : "";
+    if (
+      !teacherId &&
+      !teacherName &&
+      !classObjectId &&
+      !classCode &&
+      !className &&
+      !dateValue &&
+      !startTimeRaw &&
+      !endTimeRaw
+    ) {
+      continue;
+    }
+    rows.push({
+      rowNumber,
+      teacherId,
+      teacherName,
+      classObjectId,
+      classCode,
+      className,
+      dateValue,
+      startTime: normalizeTimeText(startTimeRaw),
+      endTime: normalizeTimeText(endTimeRaw),
+      salaryValue,
+      bonusAmountValue,
+      bonusNote: String(bonusNoteValue || "").trim(),
+      deductionAmountValue,
+      deductionNote: String(deductionNoteValue || "").trim(),
+      otherCostAmountValue,
+      otherCostNote: String(otherCostNoteValue || "").trim(),
+      note: String(noteValue || "").trim(),
+    });
   }
 
-  const durationHours = computeDurationHours(startTime, endTime);
-  if (!durationHours || durationHours <= 0) {
-    return res
-      .status(400)
-      .json({ message: "startTime / endTime không hợp lệ" });
+  if (rows.length === 0) {
+    return res.status(400).json({ message: "Không có dòng dữ liệu để import" });
   }
 
-  const normalizedSalary =
-    salary === undefined || salary === null || salary === ""
-      ? null
-      : Number(salary);
-  if (
-    normalizedSalary !== null &&
-    (!Number.isFinite(normalizedSalary) || normalizedSalary < 0)
-  ) {
-    return res.status(400).json({ message: "Salary không hợp lệ" });
-  }
-
-  const created = await TeachingLog.create({
-    classId,
-    teacherId,
-    date: new Date(date),
-    startTime,
-    endTime,
-    durationHours,
-    note,
-    salary: normalizedSalary,
-    status: normalizedSalary == null ? "Pending" : "Confirmed",
-    createdBy: req.user._id,
+  const allTeachers = await User.find({ role: "Teacher" }).select(
+    "_id fullName username",
+  );
+  const teacherById = new Map(allTeachers.map((t) => [String(t._id), t]));
+  const teacherByName = new Map();
+  allTeachers.forEach((t) => {
+    const aliases = [
+      normalizeLookupText(t.fullName),
+      normalizeLookupText(t.username),
+    ].filter(Boolean);
+    aliases.forEach((alias) => {
+      const existed = teacherByName.get(alias) || [];
+      existed.push(String(t._id));
+      teacherByName.set(alias, existed);
+    });
   });
 
-  const populated = await TeachingLog.findById(created._id)
-    .populate("classId", "className schedule")
-    .populate("teacherId", "fullName username");
-  return res.status(201).json(populated);
+  const allClasses = await Class.find({}).select("_id classId className teacherId");
+  const classByObjectId = new Map(allClasses.map((c) => [String(c._id), c]));
+  const classByCode = new Map();
+  const classByName = new Map();
+  allClasses.forEach((c) => {
+    if (c.classId) classByCode.set(String(c.classId).trim(), c);
+    const key = normalizeLookupText(c.className);
+    const existed = classByName.get(key) || [];
+    existed.push(c);
+    classByName.set(key, existed);
+  });
+
+  const errors = [];
+  const payloads = [];
+  rows.forEach((item) => {
+    let resolvedTeacherId = "";
+    if (item.teacherId) {
+      if (!teacherById.has(item.teacherId)) {
+        errors.push(`Dòng ${item.rowNumber}: teacherId không hợp lệ`);
+        return;
+      }
+      resolvedTeacherId = item.teacherId;
+    } else {
+      const matchedTeacherIds =
+        teacherByName.get(normalizeLookupText(item.teacherName)) || [];
+      if (matchedTeacherIds.length === 0) {
+        errors.push(`Dòng ${item.rowNumber}: không tìm thấy giáo viên "${item.teacherName}"`);
+        return;
+      }
+      if (matchedTeacherIds.length > 1) {
+        errors.push(`Dòng ${item.rowNumber}: tên giáo viên bị trùng, vui lòng nhập teacherId`);
+        return;
+      }
+      resolvedTeacherId = matchedTeacherIds[0];
+    }
+
+    let classDoc = null;
+    if (item.classObjectId) {
+      classDoc = classByObjectId.get(item.classObjectId) || null;
+    } else if (item.classCode) {
+      classDoc = classByCode.get(item.classCode) || null;
+    } else {
+      const matchedClasses = classByName.get(normalizeLookupText(item.className)) || [];
+      if (matchedClasses.length > 1) {
+        errors.push(`Dòng ${item.rowNumber}: tên lớp bị trùng, vui lòng nhập classId`);
+        return;
+      }
+      classDoc = matchedClasses[0] || null;
+    }
+    if (!classDoc) {
+      errors.push(`Dòng ${item.rowNumber}: không tìm thấy lớp học`);
+      return;
+    }
+    if (String(classDoc.teacherId) !== resolvedTeacherId) {
+      errors.push(`Dòng ${item.rowNumber}: class không thuộc teacher`);
+      return;
+    }
+    const date = parseImportDate(item.dateValue);
+    if (!date) {
+      errors.push(`Dòng ${item.rowNumber}: date không hợp lệ`);
+      return;
+    }
+    const durationHours = computeDurationHours(item.startTime, item.endTime);
+    if (!durationHours || durationHours <= 0) {
+      errors.push(`Dòng ${item.rowNumber}: startTime/endTime không hợp lệ`);
+      return;
+    }
+    const salary = parseSalaryValue(item.salaryValue);
+    if (salary !== null && (!Number.isFinite(salary) || salary < 0)) {
+      errors.push(`Dòng ${item.rowNumber}: salary không hợp lệ`);
+      return;
+    }
+    const deductionAmount = Number(
+      item.deductionAmountValue === "" || item.deductionAmountValue == null
+        ? 0
+        : item.deductionAmountValue,
+    );
+    if (!Number.isFinite(deductionAmount) || deductionAmount < 0) {
+      errors.push(`Dòng ${item.rowNumber}: deductionAmount không hợp lệ`);
+      return;
+    }
+    const bonusAmount = Number(
+      item.bonusAmountValue === "" || item.bonusAmountValue == null
+        ? 0
+        : item.bonusAmountValue,
+    );
+    if (!Number.isFinite(bonusAmount) || bonusAmount < 0) {
+      errors.push(`Dòng ${item.rowNumber}: bonusAmount không hợp lệ`);
+      return;
+    }
+    const otherCostAmount = Number(
+      item.otherCostAmountValue === "" || item.otherCostAmountValue == null
+        ? 0
+        : item.otherCostAmountValue,
+    );
+    if (!Number.isFinite(otherCostAmount) || otherCostAmount < 0) {
+      errors.push(`Dòng ${item.rowNumber}: otherCostAmount không hợp lệ`);
+      return;
+    }
+    payloads.push({
+      teacherId: resolvedTeacherId,
+      classId: String(classDoc._id),
+      date,
+      startTime: item.startTime,
+      endTime: item.endTime,
+      durationHours,
+      salary,
+      bonusAmount,
+      bonusNote: item.bonusNote,
+      deductionAmount,
+      deductionNote: item.deductionNote,
+      otherCostAmount,
+      otherCostNote: item.otherCostNote,
+      note: item.note,
+      status: salary == null ? "Pending" : "Confirmed",
+      createdBy: req.user._id,
+    });
+  });
+
+  if (errors.length) {
+    return res.status(400).json({
+      message: "Import thất bại do dữ liệu không hợp lệ",
+      errors: errors.slice(0, 20),
+    });
+  }
+
+  const inserted = await TeachingLog.insertMany(payloads, { ordered: true });
+  return res.status(201).json({
+    message: `Import thành công ${inserted.length} ca dạy`,
+    insertedCount: inserted.length,
+  });
+});
+
+exports.downloadPayrollImportTemplate = asyncHandler(async (_req, res) => {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet("PayrollImportTemplate");
+  const headers = [
+    "teacherName",
+    "className",
+    "date",
+    "startTime",
+    "endTime",
+    "salary",
+    "bonusAmount",
+    "bonusNote",
+    "deductionAmount",
+    "deductionNote",
+    "otherCostAmount",
+    "otherCostNote",
+    "note",
+  ];
+  sheet.columns = headers.map((header) => ({
+    header,
+    key: header,
+    width: header === "note" ? 30 : 18,
+  }));
+
+  const headerRow = sheet.getRow(1);
+  headerRow.font = { bold: true };
+  headerRow.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FFE2E8F0" },
+  };
+
+  sheet.addRow({
+    teacherName: "Nguyen Van A",
+    className: "Lop Co Vua Co Ban",
+    date: "2026-05-07",
+    startTime: "18:00",
+    endTime: "19:30",
+    salary: 250000,
+    bonusAmount: 30000,
+    bonusNote: "Dat KPI",
+    deductionAmount: 20000,
+    deductionNote: "Di muon",
+    otherCostAmount: 10000,
+    otherCostNote: "In tai lieu",
+    note: "Ca dạy mẫu để import",
+  });
+
+  sheet.getCell("C2").numFmt = "yyyy-mm-dd";
+  sheet.getCell("F2").numFmt = "#,##0";
+  sheet.getCell("G2").numFmt = "#,##0";
+  sheet.getCell("I2").numFmt = "#,##0";
+
+  const help = workbook.addWorksheet("Guide");
+  help.getCell("A1").value = "Hướng dẫn import bảng lương";
+  help.getCell("A1").font = { bold: true, size: 13 };
+  help.getCell("A3").value =
+    "1) Không đổi tên cột ở sheet PayrollImportTemplate.";
+  help.getCell("A4").value =
+    "2) Dùng teacherName + className (không cần nhập ObjectId).";
+  help.getCell("A5").value =
+    "3) Nếu tên bị trùng nhiều bản ghi, có thể dùng teacherId/classId để phân biệt.";
+  help.getCell("A6").value =
+    "4) date dùng định dạng yyyy-mm-dd, time dùng HH:mm (24h).";
+  help.getCell("A7").value =
+    "5) salary để trống nếu chưa chốt lương cho ca dạy.";
+  help.getCell("A8").value =
+    "6) bonusAmount, deductionAmount, otherCostAmount có thể để 0.";
+  help.getColumn("A").width = 90;
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  res.setHeader(
+    "Content-Type",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  );
+  res.setHeader(
+    "Content-Disposition",
+    'attachment; filename="Payroll_Import_Template.xlsx"',
+  );
+  return res.send(Buffer.from(buffer));
 });
 
 exports.getTeacherSessions = asyncHandler(async (req, res) => {
-  const sessions = await TeachingLog.find({ teacherId: req.user._id })
-    .populate("classId", "className schedule")
-    .sort({ date: -1, createdAt: -1 });
-
-  return res.json(sessions.map(toTeacherSessionDto));
+  const sessions = await payrollService.getTeacherSessions(req.user);
+  return res.json(sessions);
 });
 
 exports.getAdminPayroll = asyncHandler(async (req, res) => {
-  const teachers = await User.find({ role: "Teacher" })
-    .select("_id fullName username email phone")
-    .sort({ fullName: 1, username: 1 });
-
-  const aggregates = await TeachingLog.aggregate([
-    {
-      $group: {
-        _id: "$teacherId",
-        totalSessions: { $sum: 1 },
-        totalHours: { $sum: "$durationHours" },
-        totalSalary: { $sum: { $ifNull: ["$salary", 0] } },
-        sessionsWithoutSalary: {
-          $sum: {
-            $cond: [{ $eq: ["$salary", null] }, 1, 0],
-          },
-        },
-      },
-    },
-  ]);
-
-  const byTeacherId = new Map(
-    aggregates.map((item) => [String(item._id), item]),
-  );
-
-  const rows = teachers.map((teacher) => {
-    const stats = byTeacherId.get(String(teacher._id));
-    return {
-      teacher,
-      totalSessions: stats?.totalSessions || 0,
-      totalHours: Number((stats?.totalHours || 0).toFixed(2)),
-      totalSalary: stats?.totalSalary || 0,
-      sessionsWithoutSalary: stats?.sessionsWithoutSalary || 0,
-    };
-  });
-
+  const rows = await payrollService.getAdminPayroll();
   return res.json(rows);
 });
 
 exports.getAdminPayrollByTeacher = asyncHandler(async (req, res) => {
-  const { teacherId } = req.params;
-  const teacher = await User.findOne({
-    _id: teacherId,
-    role: "Teacher",
-  }).select("_id fullName username email phone");
-  if (!teacher) {
-    return res.status(404).json({ message: "Không tìm thấy giáo viên" });
-  }
-
-  const sessions = await TeachingLog.find({ teacherId })
-    .populate("classId", "className schedule")
-    .sort({ date: -1, createdAt: -1 });
-
-  const totalSalary = sessions.reduce(
-    (sum, item) => sum + (item.salary || 0),
-    0,
+  const detail = await payrollService.getAdminPayrollByTeacher(
+    req.params.teacherId,
   );
-  const totalHours = sessions.reduce(
-    (sum, item) => sum + (item.durationHours || 0),
-    0,
-  );
-
-  return res.json({
-    teacher,
-    sessions,
-    totalSalary,
-    totalHours: Number(totalHours.toFixed(2)),
-    totalSessions: sessions.length,
-  });
+  return res.json(detail);
 });
 
 exports.updateSessionSalary = asyncHandler(async (req, res) => {
-  const sessionId = req.params.id;
-  const salary = Number(req.body.salary);
-  if (!Number.isFinite(salary) || salary < 0) {
-    return res.status(400).json({ message: "Salary không hợp lệ" });
-  }
+  const session = await payrollService.updateSessionSalary({
+    sessionId: req.params.id,
+    salary: req.body.salary,
+  });
+  return res.json(session);
+});
 
-  const session = await TeachingLog.findById(sessionId);
-  if (!session) {
-    return res.status(404).json({ message: "Không tìm thấy ca dạy" });
-  }
-
-  if (!session.createdBy) {
-    session.createdBy = session.teacherId;
-  }
-  session.salary = salary;
-  if (session.status === "Pending") {
-    session.status = "Confirmed";
-  }
-  await session.save();
-
-  const populated = await TeachingLog.findById(session._id)
-    .populate("classId", "className schedule")
-    .populate("teacherId", "fullName username");
-
-  return res.json(populated);
+exports.updateSessionCompensation = asyncHandler(async (req, res) => {
+  const session = await payrollService.updateSessionCompensation({
+    sessionId: req.params.id,
+    body: req.body,
+  });
+  return res.json(session);
 });
 
 exports.deleteSession = asyncHandler(async (req, res) => {
-  const sessionId = req.params.id;
-  const session = await TeachingLog.findByIdAndDelete(sessionId);
-  if (!session) {
-    return res.status(404).json({ message: "Không tìm thấy ca dạy" });
-  }
-  return res.json({ message: "Đã xóa ca dạy", id: sessionId });
+  const result = await payrollService.deleteSession(req.params.id);
+  return res.json(result);
 });
 
 exports.resetSessionSalary = asyncHandler(async (req, res) => {
-  const sessionId = req.params.id;
-  const session = await TeachingLog.findById(sessionId);
-  if (!session) {
-    return res.status(404).json({ message: "Không tìm thấy ca dạy" });
-  }
-
-  if (!session.createdBy) {
-    session.createdBy = session.teacherId;
-  }
-  session.salary = null;
-  if (session.status === "Paid") {
-    session.status = "Confirmed";
-  }
-  await session.save();
-
-  const populated = await TeachingLog.findById(session._id)
-    .populate("classId", "className schedule")
-    .populate("teacherId", "fullName username");
-
-  return res.json(populated);
+  const session = await payrollService.resetSessionSalary(req.params.id);
+  return res.json(session);
 });
 
 exports.getPayrollSummary = asyncHandler(async (req, res) => {
-  const byTeacher = await TeachingLog.aggregate([
-    {
-      $group: {
-        _id: "$teacherId",
-        totalSessions: { $sum: 1 },
-        totalHours: { $sum: "$durationHours" },
-        totalSalary: { $sum: { $ifNull: ["$salary", 0] } },
-      },
-    },
-    {
-      $lookup: {
-        from: "users",
-        localField: "_id",
-        foreignField: "_id",
-        as: "teacher",
-      },
-    },
-    { $unwind: "$teacher" },
-    { $match: { "teacher.role": "Teacher" } },
-    {
-      $project: {
-        _id: 0,
-        teacherId: "$teacher._id",
-        teacherName: {
-          $ifNull: ["$teacher.fullName", "$teacher.username"],
-        },
-        totalSessions: 1,
-        totalHours: { $round: ["$totalHours", 2] },
-        totalSalary: 1,
-      },
-    },
-    { $sort: { teacherName: 1 } },
-  ]);
-
-  const totals = byTeacher.reduce(
-    (acc, item) => {
-      acc.totalTeachers += 1;
-      acc.totalSessions += item.totalSessions || 0;
-      acc.totalHours += item.totalHours || 0;
-      acc.totalSalary += item.totalSalary || 0;
-      return acc;
-    },
-    {
-      totalTeachers: 0,
-      totalSessions: 0,
-      totalHours: 0,
-      totalSalary: 0,
-    },
-  );
-
-  totals.totalHours = Number(totals.totalHours.toFixed(2));
-
-  return res.json({
-    summary: totals,
-    teachers: byTeacher,
-  });
+  const summary = await payrollService.getPayrollSummary();
+  return res.json(summary);
 });
 
 exports.exportPayslip = asyncHandler(async (req, res) => {
@@ -486,6 +680,20 @@ exports.exportPayslip = asyncHandler(async (req, res) => {
     (sum, item) => sum + (Number(item.salary) || 0),
     0,
   );
+  const totalDeductions = salarySessions.reduce(
+    (sum, item) => sum + (Number(item.deductionAmount) || 0),
+    0,
+  );
+  const totalBonuses = salarySessions.reduce(
+    (sum, item) => sum + (Number(item.bonusAmount) || 0),
+    0,
+  );
+  const totalOtherCosts = salarySessions.reduce(
+    (sum, item) => sum + (Number(item.otherCostAmount) || 0),
+    0,
+  );
+  const totalNetSalary =
+    totalSalary + totalBonuses - totalDeductions - totalOtherCosts;
 
   const teacherName = teacher.fullName || teacher.username || "Teacher";
   const generatedBy = req.user?.fullName || req.user?.username || "Admin";
@@ -514,7 +722,11 @@ exports.exportPayslip = asyncHandler(async (req, res) => {
       { header: "Giờ bắt đầu", key: "startTime", width: 12 },
       { header: "Giờ kết thúc", key: "endTime", width: 12 },
       { header: "Tổng giờ", key: "durationHours", width: 12 },
-      { header: "Lương/ca", key: "salary", width: 16 },
+      { header: "Lương/ca", key: "salary", width: 14 },
+      { header: "Thưởng", key: "bonusAmount", width: 12 },
+      { header: "Phạt", key: "deductionAmount", width: 12 },
+      { header: "Chi phí khác", key: "otherCostAmount", width: 14 },
+      { header: "Thực nhận", key: "netSalary", width: 14 },
     ];
 
     if (logoPath) {
@@ -531,12 +743,12 @@ exports.exportPayslip = asyncHandler(async (req, res) => {
       });
     }
 
-    sheet.mergeCells("A1:F1");
+    sheet.mergeCells("A1:J1");
     sheet.getCell("A1").value = centerName.toUpperCase();
     sheet.getCell("A1").font = { bold: true, size: 16 };
     sheet.getCell("A1").alignment = { horizontal: "center" };
 
-    sheet.mergeCells("A2:F2");
+    sheet.mergeCells("A2:J2");
     sheet.getCell("A2").value = `PHIẾU LƯƠNG - ${parsed.m}/${parsed.y}`;
     sheet.getCell("A2").font = { bold: true, size: 13 };
     sheet.getCell("A2").alignment = { horizontal: "center" };
@@ -557,6 +769,10 @@ exports.exportPayslip = asyncHandler(async (req, res) => {
       "Giờ kết thúc",
       "Tổng giờ",
       "Lương/ca",
+      "Thưởng",
+      "Phạt",
+      "Chi phí khác",
+      "Thực nhận",
     ];
     headers.forEach((label, idx) => {
       const cell = sheet.getCell(tableHeaderRow, idx + 1);
@@ -582,8 +798,16 @@ exports.exportPayslip = asyncHandler(async (req, res) => {
       row.getCell(3).value = item.startTime || "";
       row.getCell(4).value = item.endTime || "";
       row.getCell(5).value = Number(item.durationHours || 0);
-      row.getCell(6).value = Number(item.salary || 0);
-      [1, 2, 3, 4, 5, 6].forEach((col) => {
+      const salary = Number(item.salary || 0);
+      const bonus = Number(item.bonusAmount || 0);
+      const deduction = Number(item.deductionAmount || 0);
+      const otherCost = Number(item.otherCostAmount || 0);
+      row.getCell(6).value = salary;
+      row.getCell(7).value = bonus;
+      row.getCell(8).value = deduction;
+      row.getCell(9).value = otherCost;
+      row.getCell(10).value = salary + bonus - deduction - otherCost;
+      [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].forEach((col) => {
         row.getCell(col).border = {
           top: { style: "thin" },
           left: { style: "thin" },
@@ -600,8 +824,16 @@ exports.exportPayslip = asyncHandler(async (req, res) => {
     sheet.getCell(`B${summaryStart + 1}`).value = totalHours;
     sheet.getCell(`A${summaryStart + 2}`).value = "Tổng số lương";
     sheet.getCell(`B${summaryStart + 2}`).value = formatNumberVi(totalSalary);
-    sheet.getCell(`A${summaryStart + 2}`).font = { bold: true };
-    sheet.getCell(`B${summaryStart + 2}`).font = { bold: true };
+    sheet.getCell(`A${summaryStart + 3}`).value = "Tổng thưởng";
+    sheet.getCell(`B${summaryStart + 3}`).value = formatNumberVi(totalBonuses);
+    sheet.getCell(`A${summaryStart + 4}`).value = "Tổng phạt";
+    sheet.getCell(`B${summaryStart + 4}`).value = formatNumberVi(totalDeductions);
+    sheet.getCell(`A${summaryStart + 5}`).value = "Tổng chi phí khác";
+    sheet.getCell(`B${summaryStart + 5}`).value = formatNumberVi(totalOtherCosts);
+    sheet.getCell(`A${summaryStart + 6}`).value = "Lương thực nhận";
+    sheet.getCell(`B${summaryStart + 6}`).value = formatNumberVi(totalNetSalary);
+    sheet.getCell(`A${summaryStart + 6}`).font = { bold: true };
+    sheet.getCell(`B${summaryStart + 6}`).font = { bold: true };
 
     const buffer = await workbook.xlsx.writeBuffer();
     res.setHeader(
@@ -664,7 +896,7 @@ exports.exportPayslip = asyncHandler(async (req, res) => {
   doc.moveDown();
 
   const tableTop = doc.y;
-  const colX = [40, 100, 240, 300, 360, 430];
+  const colX = [30, 78, 172, 222, 272, 318, 368, 418, 468, 522];
   setBoldFont();
   doc.fontSize(10);
   [
@@ -673,13 +905,18 @@ exports.exportPayslip = asyncHandler(async (req, res) => {
     "Giờ bắt đầu",
     "Giờ kết thúc",
     "Tổng giờ",
-    "Lương/ca",
+    "Lương",
+    "Thưởng",
+    "Phạt",
+    "CP khác",
+    "Thực nhận",
   ].forEach((h, idx) => {
-    doc.text(h, colX[idx], tableTop, { width: idx === 1 ? 130 : 60 });
+    const widths = [46, 90, 48, 48, 44, 48, 48, 48, 50, 50];
+    doc.text(h, colX[idx], tableTop, { width: widths[idx] });
   });
   doc
     .moveTo(40, tableTop + 15)
-    .lineTo(555, tableTop + 15)
+    .lineTo(570, tableTop + 15)
     .stroke();
 
   setRegularFont();
@@ -693,10 +930,19 @@ exports.exportPayslip = asyncHandler(async (req, res) => {
       width: 55,
     });
     doc.text(item.classId?.className || "", colX[1], y, { width: 130 });
-    doc.text(item.startTime || "", colX[2], y, { width: 55 });
-    doc.text(item.endTime || "", colX[3], y, { width: 55 });
-    doc.text(String(item.durationHours || 0), colX[4], y, { width: 55 });
-    doc.text(String(item.salary || 0), colX[5], y, { width: 100 });
+    const salary = Number(item.salary || 0);
+    const bonus = Number(item.bonusAmount || 0);
+    const deduction = Number(item.deductionAmount || 0);
+    const otherCost = Number(item.otherCostAmount || 0);
+    const net = salary + bonus - deduction - otherCost;
+    doc.text(item.startTime || "", colX[2], y, { width: 46 });
+    doc.text(item.endTime || "", colX[3], y, { width: 46 });
+    doc.text(String(item.durationHours || 0), colX[4], y, { width: 42 });
+    doc.text(formatNumberVi(salary), colX[5], y, { width: 46 });
+    doc.text(formatNumberVi(bonus), colX[6], y, { width: 46 });
+    doc.text(formatNumberVi(deduction), colX[7], y, { width: 46 });
+    doc.text(formatNumberVi(otherCost), colX[8], y, { width: 48 });
+    doc.text(formatNumberVi(net), colX[9], y, { width: 50 });
     y += 18;
   });
 
@@ -705,6 +951,10 @@ exports.exportPayslip = asyncHandler(async (req, res) => {
   doc.text(`Tổng số ca: ${totalSessions}`);
   doc.text(`Tổng số giờ: ${totalHours}`);
   doc.text(`Tổng số lương: ${formatNumberVi(totalSalary)}`);
+  doc.text(`Tổng thưởng: ${formatNumberVi(totalBonuses)}`);
+  doc.text(`Tổng phạt: ${formatNumberVi(totalDeductions)}`);
+  doc.text(`Tổng chi phí khác: ${formatNumberVi(totalOtherCosts)}`);
+  doc.text(`Lương thực nhận: ${formatNumberVi(totalNetSalary)}`);
 
   doc.end();
 });

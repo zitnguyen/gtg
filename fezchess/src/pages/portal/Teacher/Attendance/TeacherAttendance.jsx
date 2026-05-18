@@ -3,9 +3,10 @@ import { useSearchParams } from "react-router-dom";
 import attendanceService from "../../../../services/attendanceService";
 import classService from "../../../../services/classService";
 import { toast } from "sonner";
+import authService from "../../../../services/authService";
 
 const TeacherAttendance = () => {
-  const user = JSON.parse(localStorage.getItem("user"));
+  const user = authService.getCurrentUser();
   const teacherId = user?._id || user?.userId;
   const [params] = useSearchParams();
 
@@ -34,6 +35,9 @@ const TeacherAttendance = () => {
         setClasses(Array.isArray(data) ? data : []);
       } catch (error) {
         console.error("Failed to load classes", error);
+        toast.error(
+          error?.response?.data?.message || "Không tải được danh sách lớp",
+        );
       }
     };
     loadClasses();
@@ -75,6 +79,10 @@ const TeacherAttendance = () => {
         setRows(merged);
       } catch (error) {
         console.error("Failed to load attendance rows", error);
+        toast.error(
+          error?.response?.data?.message ||
+            "Không tải được điểm danh. Vui lòng thử lại.",
+        );
       } finally {
         setLoading(false);
       }

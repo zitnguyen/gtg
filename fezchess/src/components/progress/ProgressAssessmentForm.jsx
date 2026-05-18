@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Save, ArrowLeft, Download, Trash2 } from "lucide-react";
+import LessonContentQuickPicker from "./LessonContentQuickPicker";
 
 const ProgressAssessmentForm = ({
   title = "Chi Tiết Phiếu Học Tập",
@@ -20,6 +21,14 @@ const ProgressAssessmentForm = ({
   studentName,
   className,
 }) => {
+  const [activeSessionIndex, setActiveSessionIndex] = useState(0);
+
+  useEffect(() => {
+    if (activeSessionIndex >= sessions.length && sessions.length > 0) {
+      setActiveSessionIndex(sessions.length - 1);
+    }
+  }, [sessions.length, activeSessionIndex]);
+
   const formatSessionDate = (session) => {
     const rawDate = session?.date || session?.attendanceId?.date || null;
     if (!rawDate) return "Chưa có ngày";
@@ -32,6 +41,11 @@ const ProgressAssessmentForm = ({
     setSessions((prevSessions) =>
       prevSessions.filter((_, index) => index !== indexToRemove),
     );
+    setActiveSessionIndex((prev) => {
+      if (prev === indexToRemove) return Math.max(0, indexToRemove - 1);
+      if (prev > indexToRemove) return prev - 1;
+      return prev;
+    });
   };
 
   if (loading) return <div className="p-10 text-center">Đang tải...</div>;
@@ -103,7 +117,15 @@ const ProgressAssessmentForm = ({
               Chưa có dữ liệu điểm danh để tạo buổi học.
             </p>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+              <LessonContentQuickPicker
+                sessions={sessions}
+                setSessions={setSessions}
+                readOnly={readOnly}
+                activeSessionIndex={activeSessionIndex}
+                onActiveSessionChange={setActiveSessionIndex}
+              />
+              <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50">
                   <tr>
@@ -122,19 +144,40 @@ const ProgressAssessmentForm = ({
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {sessions.map((session, index) => (
-                    <tr key={index}>
+                    <tr
+                      key={index}
+                      className={
+                        !readOnly && activeSessionIndex === index
+                          ? "bg-primary/5 ring-1 ring-inset ring-primary/30"
+                          : undefined
+                      }
+                      onClick={() => {
+                        if (!readOnly) setActiveSessionIndex(index);
+                      }}
+                    >
                       <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                        Buổi {index + 1} <br />
+                        Buổi {index + 1}{" "}
+                        {!readOnly && activeSessionIndex === index ? (
+                          <span className="text-[10px] font-semibold text-primary uppercase">
+                            (đang chọn)
+                          </span>
+                        ) : null}
+                        <br />
                         <span className="text-gray-500 font-normal">
                           {formatSessionDate(session)}
                         </span>
                       </td>
                       <td className="px-4 py-3">
                         <textarea
-                          className="w-full p-2 border border-gray-200 rounded-md focus:outline-none focus:border-primary text-sm min-h-[80px]"
+                          className={`w-full p-2 border rounded-md focus:outline-none text-sm min-h-[80px] ${
+                            !readOnly && activeSessionIndex === index
+                              ? "border-primary ring-1 ring-primary/20"
+                              : "border-gray-200 focus:border-primary"
+                          }`}
                           placeholder="Nhập nội dung bài học..."
                           value={session.content || ""}
                           readOnly={readOnly}
+                          onFocus={() => setActiveSessionIndex(index)}
                           onChange={(e) => {
                             const newSessions = [...sessions];
                             newSessions[index].content = e.target.value;
@@ -160,6 +203,7 @@ const ProgressAssessmentForm = ({
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </div>
 

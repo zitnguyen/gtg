@@ -556,11 +556,10 @@ Setting (singleton), Post, Inquiry, Testimonial, HeroSetting
 
 ## 10. Hạn chế & khoảng trống đã biết
 
-**Đã xử lý (không còn trong bảng):** GAP-01 route `/student/tuition`; GAP-02 menu Parent tiến độ; GAP-03 model `FinancialReport` + export Excel; GAP-04 trang không route chuyển `fezchess/src/pages/_legacy/`, gắn `/admin/notifications/new`.
+**Đã xử lý (không còn trong bảng):** GAP-01 route `/student/tuition`; GAP-02 menu Parent tiến độ; GAP-03 model `FinancialReport` + export Excel; GAP-04 trang không route chuyển `fezchess/src/pages/_legacy/`, gắn `/admin/notifications/new`; GAP-05 `ThemeContext` + `ThemeToggle` + `darkMode: class`.
 
 | # | Mô tả | Ảnh hưởng |
 |---|--------|-----------|
-| GAP-05 | Theme toggle vô hiệu (light cố định) | Không dark mode |
 | GAP-06 | Thanh toán online tự động chưa tích hợp đầy đủ | Thủ công/chuyển khoản |
 | GAP-07 | Redis queue notification ghi chú tương lai | Scale horizontal hạn chế |
 | GAP-08 | Đa chi nhánh / multi-tenant | Single center only |

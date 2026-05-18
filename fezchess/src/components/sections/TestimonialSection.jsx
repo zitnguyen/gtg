@@ -61,31 +61,21 @@ const TestimonialSection = () => {
   }, []);
 
   return (
-    <section
-      className="py-20 bg-background"
-      style={{ backgroundColor: section?.sectionBgColor || undefined }}
-    >
+    <section className="py-12 md:py-14 bg-white">
       <div className="container mx-auto px-4">
-        {/* Header */}
-        <ScrollReveal className="text-center mb-16">
-          <span
-            className="inline-block px-4 py-2 rounded-full text-sm font-medium mb-4"
-            style={{
-              backgroundColor: section?.badgeBgColor || undefined,
-              color: section?.badgeTextColor || undefined,
-            }}
-          >
-            {section?.badge || "Phản hồi"}
-          </span>
+        <ScrollReveal className="text-center mb-7 md:mb-9">
           <h2
-            className="font-display text-3xl md:text-4xl font-bold text-foreground mb-4"
-            style={{ color: section?.titleColor || undefined }}
+            className="font-display text-[28px] md:text-3xl font-bold text-foreground mb-1.5"
           >
             {section?.title || "Phụ huynh nói gì về chúng tôi"}
           </h2>
+          <div className="flex justify-center items-center gap-1 mb-3">
+            {[...Array(5)].map((_, i) => (
+              <StarIcon key={i} className="w-4 h-4 text-yellow-400" />
+            ))}
+          </div>
           <p
-            className="text-muted-foreground max-w-2xl mx-auto"
-            style={{ color: section?.descriptionColor || undefined }}
+            className="text-muted-foreground max-w-2xl mx-auto text-sm"
           >
             {section?.description ||
               "Sự tin tưởng và hài lòng của phụ huynh là động lực để chúng tôi không ngừng hoàn thiện."}
@@ -93,27 +83,27 @@ const TestimonialSection = () => {
         </ScrollReveal>
 
         {/* Testimonials Grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
           {items.map((testimonial, index) => (
             <ScrollReveal key={testimonial._id || testimonial.id} delay={index * 0.1}>
               <motion.div
                 whileHover={{ y: -5 }}
-                className="bg-card p-6 rounded-xl border border-border shadow-sm"
+                className="bg-[#fafafa] p-4 rounded-xl border border-[#ececec] shadow-sm"
               >
                 {/* Rating */}
-                <div className="flex gap-1 mb-4">
+                <div className="flex gap-1 mb-3">
                   {[...Array(testimonial.rating)].map((_, i) => (
-                    <StarIcon key={i} className="w-5 h-5 text-yellow-400" />
+                    <StarIcon key={i} className="w-4 h-4 text-yellow-400" />
                   ))}
                 </div>
 
                 {/* Content */}
-                <p className="text-foreground mb-6 leading-relaxed">
+                <p className="text-foreground mb-4 leading-relaxed text-sm">
                   "{testimonial.content}"
                 </p>
 
                 {/* Author */}
-                <div className="flex items-center gap-3 pt-4 border-t border-border">
+                <div className="flex items-center gap-3 pt-3 border-t border-border">
                   <img
                     src={testimonial.image}
                     alt={testimonial.name}

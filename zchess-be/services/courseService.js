@@ -312,22 +312,35 @@ exports.deleteCourse = async (id) => {
  * Courses the user has purchased (completed orders), inspired by zlss order flow.
  */
 exports.getMyCourses = async (userId) => {
-  const orders = await Order.find({
-    userId,
-    status: "completed",
-  }).populate("items.courseId");
+  const [orders, accessRows] = await Promise.all([
+    Order.find({
+      userId,
+      status: "completed",
+    }).populate("items.courseId"),
+    CourseAccess.find({ userId }).populate("courseId"),
+  ]);
 
   const courses = [];
   const seen = new Set();
 
   for (const order of orders) {
     for (const item of order.items || []) {
-      const c = item.courseId;
-      if (c && c._id && !seen.has(String(c._id))) {
-        seen.add(String(c._id));
-        courses.push(c);
-      }
+      const course = item?.courseId;
+      if (!course?._id) continue;
+      const key = String(course._id);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      courses.push(course);
     }
+  }
+
+  for (const row of accessRows) {
+    const course = row?.courseId;
+    if (!course?._id) continue;
+    const key = String(course._id);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    courses.push(course);
   }
 
   return courses;

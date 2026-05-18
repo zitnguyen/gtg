@@ -55,11 +55,15 @@ const classSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ["Pending", "Active", "Finished"],
+      enum: ["Pending", "Active", "Finished", "Cancelled", "OnHold"],
       default: "Pending",
+      index: true,
     },
   },
   { timestamps: true }
 );
+
+classSchema.index({ teacherId: 1, status: 1 });
+classSchema.index({ status: 1, startDate: 1 });
 
 module.exports = mongoose.model("Class", classSchema);

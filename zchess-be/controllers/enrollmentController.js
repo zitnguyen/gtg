@@ -176,6 +176,19 @@ exports.enrollStudent = asyncHandler(async (req, res) => {
   const classItem = await Class.findById(classId);
   if (!classItem)
     return res.status(404).json({ message: "Lớp học không tồn tại" });
+  if (["Cancelled", "Finished"].includes(classItem.status)) {
+    return res.status(400).json({
+      message: `Lớp đang ở trạng thái ${classItem.status}, không thể ghi danh.`,
+    });
+  }
+
+  // Teacher chỉ được ghi danh vào lớp do mình phụ trách.
+  if (
+    req.user?.role === "Teacher" &&
+    String(classItem.teacherId || "") !== String(req.user._id)
+  ) {
+    return res.status(403).json({ message: "Forbidden" });
+  }
 
   const student = await Student.findById(studentId).select("isDeleted");
   if (!student)
@@ -186,9 +199,27 @@ exports.enrollStudent = asyncHandler(async (req, res) => {
       .json({ message: "Không thể ghi danh cho học viên đã bị xóa" });
   }
 
-  const existingEnrollment = await Enrollment.findOne({ studentId, classId });
+  const existingEnrollment = await Enrollment.findOne({
+    studentId,
+    classId,
+    status: { $in: ["Active", "Reserved"] },
+  });
   if (existingEnrollment)
     return res.status(400).json({ message: "Học viên đã ghi danh vào lớp này rồi" });
+
+  const currentInClass = Array.isArray(classItem.studentIds)
+    ? classItem.studentIds.length
+    : Number(classItem.currentStudents || 0);
+  if (
+    typeof classItem.maxStudents === "number" &&
+    classItem.maxStudents > 0 &&
+    currentInClass >= classItem.maxStudents
+  ) {
+    return res.status(409).json({
+      code: "CLASS_FULL",
+      message: "Lớp đã đầy. Vui lòng đăng ký vào danh sách chờ (waitlist).",
+    });
+  }
 
   const resolvedFee =
     feeAmount != null && feeAmount !== ""
@@ -197,32 +228,62 @@ exports.enrollStudent = asyncHandler(async (req, res) => {
         ? Number(classItem.fee)
         : 0;
 
+  const enrollDate = enrollmentDate ? new Date(enrollmentDate) : new Date();
+  const dueDate = new Date(enrollDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+
   const enrollment = await Enrollment.create({
     studentId,
     classId,
-    enrollmentDate: enrollmentDate ? new Date(enrollmentDate) : new Date(),
+    enrollmentDate: enrollDate,
     status: normalizeEnrollmentStatus(status),
     paymentStatus: normalizePaymentStatus(paymentStatus),
     feeAmount: resolvedFee,
+    paidAmount: 0,
+    paymentDueDate: dueDate,
     sessionsTotal: classItem.totalSessions || 16,
     sessionsUsed: 0,
   });
 
-  await Class.findByIdAndUpdate(classId, { $inc: { currentStudents: 1 } });
+  await Class.findByIdAndUpdate(classId, {
+    $addToSet: { studentIds: studentId },
+    $inc: { currentStudents: 1 },
+  });
 
   res.status(201).json(enrollment);
 });
 
 exports.withdrawStudent = asyncHandler(async (req, res) => {
-  const { studentId, classId } = req.body;
+  const { studentId, classId, reason } = req.body;
 
-  const enrollment = await Enrollment.findOneAndDelete({ studentId, classId });
-  if (!enrollment)
-    return res.status(404).json({ message: "Ghi danh không tồn tại" });
+  if (req.user?.role === "Teacher") {
+    const ownsClass = await Class.exists({
+      _id: classId,
+      teacherId: req.user._id,
+    });
+    if (!ownsClass) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+  }
 
-  await Class.findByIdAndUpdate(classId, { $inc: { currentStudents: -1 } });
+  // Soft-drop thay vì xoá: giữ lịch sử để công nợ/transferLog không mất.
+  const enrollment = await Enrollment.findOne({
+    studentId,
+    classId,
+    status: { $in: ["Active", "Reserved"] },
+  });
+  if (!enrollment) return res.status(404).json({ message: "Ghi danh không tồn tại" });
 
-  res.json({ message: "Đã hủy ghi danh học viên" });
+  enrollment.status = "Dropped";
+  enrollment.droppedAt = new Date();
+  enrollment.droppedReason = reason || "";
+  await enrollment.save();
+
+  await Class.findByIdAndUpdate(classId, {
+    $pull: { studentIds: studentId },
+    $inc: { currentStudents: -1 },
+  });
+
+  res.json({ message: "Đã hủy ghi danh học viên", enrollment });
 });
 
 exports.getEnrollmentsByClass = asyncHandler(async (req, res) => {
@@ -244,6 +305,12 @@ exports.getEnrollmentsByClass = asyncHandler(async (req, res) => {
 });
 
 exports.getStudentEnrollments = asyncHandler(async (req, res) => {
+  if (req.user && req.user.role === "Student") {
+    const sid = req.user.linkedStudentId;
+    if (!sid || String(sid) !== String(req.params.studentId)) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+  }
   if (req.user && req.user.role === "Parent") {
     const owns = await Student.exists({
       _id: req.params.studentId,

@@ -27,6 +27,11 @@ exports.protect = async (req, res, next) => {
     if (!user) {
       return res.status(401).json({ message: "User not found" });
     }
+    /* Task: Elo khởi điểm 100 cho tài khoản cũ — DucManh-BlueOC */
+    if (!Number.isFinite(user.elo) || user.elo < 100) {
+      await User.findByIdAndUpdate(user._id, { elo: 100 });
+      user.elo = 100;
+    }
     req.user = user;
     const now = Date.now();
     const lastSeenMs = user.lastSeenAt ? new Date(user.lastSeenAt).getTime() : 0;
@@ -63,7 +68,13 @@ exports.optionalProtect = async (req, _res, next) => {
     if (!process.env.JWT_SECRET) return next();
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findById(decoded.id).select("-password");
-    if (user) req.user = user;
+    if (user) {
+      if (!Number.isFinite(user.elo) || user.elo < 100) {
+        await User.findByIdAndUpdate(user._id, { elo: 100 });
+        user.elo = 100;
+      }
+      req.user = user;
+    }
   } catch {
     // Optional auth should never block public endpoints.
   }

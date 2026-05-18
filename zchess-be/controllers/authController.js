@@ -95,6 +95,7 @@ exports.signup = asyncHandler(async (req, res) => {
       fullName,
       phone,
       role: "Parent",
+      elo: 100,
     });
 
     return res.status(201).json({
@@ -137,6 +138,9 @@ exports.signin = asyncHandler(async (req, res) => {
 
   user.isOnline = true;
   user.lastSeenAt = new Date();
+  if (!Number.isFinite(user.elo) || user.elo < 100) {
+    user.elo = 100;
+  }
   await user.save({ validateBeforeSave: false });
 
   setAccessCookie(res, accessToken);
@@ -149,6 +153,8 @@ exports.signin = asyncHandler(async (req, res) => {
     username: user.username,
     fullName: user.fullName || "",
     role: user.role,
+    elo: Number.isFinite(user.elo) ? user.elo : 100,
+    linkedStudentId: user.linkedStudentId || null,
   });
 });
 

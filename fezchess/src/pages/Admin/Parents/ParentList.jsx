@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Plus, Edit, Trash2, Search, Phone, Mail, MapPin, User, CheckCircle2 } from "lucide-react";
 import { motion } from "framer-motion";
@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import parentService from "../../../services/parentService";
 import TableSkeleton from "../../../components/ui/TableSkeleton";
 import useUndoDelete from "../../../hooks/useUndoDelete";
+import { useTheme } from "../../../context/ThemeContext";
 
 const ParentList = () => {
   const navigate = useNavigate();
@@ -16,6 +17,8 @@ const ParentList = () => {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [highlightedRowId, setHighlightedRowId] = useState(null);
   const { scheduleUndoDelete } = useUndoDelete();
+  const { isDark } = useTheme();
+  const lastToastKeyRef = useRef("");
 
   useEffect(() => {
     fetchParents();
@@ -24,6 +27,9 @@ const ParentList = () => {
   useEffect(() => {
     const updatedParent = location.state?.updatedParent;
     if (!updatedParent?._id) return;
+    const toastKey = `parent-updated-${updatedParent._id}-${location.state?.updatedAt || ""}`;
+    if (lastToastKeyRef.current === toastKey) return;
+    lastToastKeyRef.current = toastKey;
 
     setParents((prevParents) => {
       const index = prevParents.findIndex((item) => item._id === updatedParent._id);
@@ -35,10 +41,14 @@ const ParentList = () => {
       return next;
     });
     setHighlightedRowId(updatedParent._id);
-    toast.success("✔ Cập nhật thành công", { icon: <CheckCircle2 size={16} /> });
+    toast.success("✔ Cập nhật thành công", {
+      id: toastKey,
+      icon: <CheckCircle2 size={16} />,
+    });
+    navigate(location.pathname, { replace: true, state: {} });
     const timeout = setTimeout(() => setHighlightedRowId(null), 2500);
     return () => clearTimeout(timeout);
-  }, [location.state?.updatedAt]);
+  }, [location.state?.updatedAt, location.pathname, navigate]);
 
   const fetchParents = async () => {
     try {
@@ -116,7 +126,7 @@ const ParentList = () => {
                 <th scope="col" className="relative px-6 py-4"><span className="sr-only">Hành động</span></th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-background divide-y divide-border">
               {loading ? (
                 <TableSkeleton rows={6} cols={4} />
               ) : filteredParents.length > 0 ? (
@@ -128,7 +138,13 @@ const ParentList = () => {
                       opacity: 1,
                       scale: 1,
                       backgroundColor:
-                        highlightedRowId === parent._id ? "rgb(240 253 244)" : "rgb(255 255 255)",
+                        highlightedRowId === parent._id
+                          ? isDark
+                            ? "rgb(6 46 26)"
+                            : "rgb(240 253 244)"
+                          : isDark
+                            ? "rgb(0 0 0)"
+                            : "rgb(255 255 255)",
                     }}
                     transition={{ duration: 0.28, ease: "easeOut" }}
                     className="hover:bg-gray-50 transition-colors group"

@@ -83,6 +83,7 @@ import TermsOfUsePage from "./pages/public/TermsOfUsePage";
 import { Toaster, toast } from "sonner";
 import { SystemSettingsProvider } from "./context/SystemSettingsContext";
 import { ThemeProvider, useTheme } from "./context/ThemeContext";
+import { TooltipProvider } from "./components/ui";
 import { PublicCmsProvider } from "./context/PublicCmsContext";
 import FloatingSocialButtons from "./components/common/FloatingSocialButtons";
 import CrudRealtimeBridge from "./components/common/CrudRealtimeBridge";
@@ -232,6 +233,7 @@ function App() {
     <Router>
       <ErrorBoundary>
         <ThemeProvider>
+          <TooltipProvider>
           <SystemSettingsProvider>
             <PublicCmsProvider>
               <ThemedToaster />
@@ -1020,6 +1022,7 @@ function App() {
               </Routes>
             </PublicCmsProvider>
           </SystemSettingsProvider>
+          </TooltipProvider>
         </ThemeProvider>
       </ErrorBoundary>
     </Router>

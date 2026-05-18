@@ -18,8 +18,19 @@ const normalizeImages = (images, thumbnail) => {
 };
 
 exports.getPosts = asyncHandler(async (req, res) => {
-  const { category, tag, page = 1, limit = 10 } = req.query;
-  const query = { isPublished: true };
+  const { category, tag, page = 1, limit = 10, status } = req.query;
+  const query = {};
+
+  // Admin/Teacher có thể truyền status=all|draft|published; mặc định public chỉ thấy published.
+  const role = String(req.user?.role || "").toLowerCase();
+  const canSeeDrafts = role === "admin" || role === "teacher";
+  if (canSeeDrafts && status === "all") {
+    // không lọc theo trạng thái
+  } else if (canSeeDrafts && status === "draft") {
+    query.isPublished = false;
+  } else {
+    query.isPublished = true;
+  }
 
   if (category) query.category = category;
   if (tag) query.tags = tag;

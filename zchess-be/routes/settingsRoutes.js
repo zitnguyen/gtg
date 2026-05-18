@@ -1,10 +1,14 @@
 const express = require("express");
-const { protect, authorize } = require("../middleware/authMiddleware");
+const {
+  protect,
+  optionalProtect,
+  authorize,
+} = require("../middleware/authMiddleware");
 const settingsController = require("../controllers/settingsController");
 
 const router = express.Router();
 
-router.get("/", settingsController.getSettings);
+router.get("/", optionalProtect, settingsController.getSettings);
 router.get("/public-cms/public", settingsController.getPublicCms);
 router.get(
   "/public-cms",

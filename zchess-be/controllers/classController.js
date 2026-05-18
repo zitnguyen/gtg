@@ -52,6 +52,87 @@ const shapeResponse = (classDoc) => {
   return { ...plain, currentStudents };
 };
 
+const isAdmin = (user) => String(user?.role || "").toLowerCase() === "admin";
+const isTeacher = (user) => String(user?.role || "").toLowerCase() === "teacher";
+
+const canSeeClassRoster = (classDoc, user) => {
+  if (isAdmin(user)) return true;
+  if (!isTeacher(user)) return false;
+  return String(classDoc?.teacherId?._id || classDoc?.teacherId || "") === String(user._id);
+};
+
+const sanitizeClassForPublic = (classDoc) => {
+  const plain = shapeResponse(classDoc);
+  const teacher =
+    plain.teacherId && typeof plain.teacherId === "object"
+      ? {
+          _id: plain.teacherId._id,
+          fullName: plain.teacherId.fullName,
+          username: plain.teacherId.username,
+        }
+      : plain.teacherId;
+
+  return {
+    _id: plain._id,
+    classId: plain.classId,
+    className: plain.className,
+    description: plain.description,
+    fee: plain.fee,
+    level: plain.level,
+    maxStudents: plain.maxStudents,
+    currentStudents: plain.currentStudents,
+    totalSessions: plain.totalSessions,
+    durationWeeks: plain.durationWeeks,
+    teacherId: teacher,
+    startDate: plain.startDate,
+    schedule: plain.schedule,
+    scheduleSlots: plain.scheduleSlots,
+    room: plain.room,
+    status: plain.status,
+    createdAt: plain.createdAt,
+    updatedAt: plain.updatedAt,
+  };
+};
+
+const hhmmToMinutes = (value) => {
+  const match = String(value || "").match(/^([01]\d|2[0-3]):([0-5]\d)$/);
+  if (!match) return null;
+  return Number(match[1]) * 60 + Number(match[2]);
+};
+
+const slotsOverlap = (a, b) => {
+  if (Number(a?.day) !== Number(b?.day)) return false;
+  const aStart = hhmmToMinutes(a?.time);
+  const bStart = hhmmToMinutes(b?.time);
+  if (aStart === null || bStart === null) return false;
+  const aEnd = aStart + Number(a?.duration || 90);
+  const bEnd = bStart + Number(b?.duration || 90);
+  return aStart < bEnd && bStart < aEnd;
+};
+
+const findTeacherScheduleConflict = async ({ teacherId, scheduleSlots, excludeClassId }) => {
+  if (!teacherId || !Array.isArray(scheduleSlots) || scheduleSlots.length === 0) {
+    return null;
+  }
+  const filter = {
+    teacherId,
+    status: { $nin: ["Finished", "Cancelled"] },
+  };
+  if (excludeClassId) filter._id = { $ne: excludeClassId };
+  const classes = await Class.find(filter).select("className schedule scheduleSlots");
+  for (const klass of classes) {
+    const existingSlots =
+      Array.isArray(klass.scheduleSlots) && klass.scheduleSlots.length > 0
+        ? klass.scheduleSlots
+        : buildScheduleSlotsFromLegacy(klass.schedule);
+    const hasConflict = scheduleSlots.some((slot) =>
+      existingSlots.some((existing) => slotsOverlap(slot, existing)),
+    );
+    if (hasConflict) return klass;
+  }
+  return null;
+};
+
 const hydrateStudentsForClasses = async (classes = []) => {
   const allStudentIds = [
     ...new Set(
@@ -76,6 +157,17 @@ const hydrateStudentsForClasses = async (classes = []) => {
 exports.createClass = asyncHandler(async (req, res) => {
   const payload = normalizePayload(req.body);
   payload.status = payload.status || "Pending";
+  const conflict = await findTeacherScheduleConflict({
+    teacherId: payload.teacherId,
+    scheduleSlots: payload.scheduleSlots,
+  });
+  if (conflict) {
+    return res.status(409).json({
+      message: `Giáo viên đã có lịch trùng với lớp "${conflict.className}".`,
+      code: "TEACHER_SCHEDULE_CONFLICT",
+      conflictClassId: conflict._id,
+    });
+  }
   const created = await Class.create(payload);
   const newClass = await Class.findById(created._id).populate(CLASS_POPULATE);
 
@@ -96,6 +188,9 @@ exports.getAllClasses = asyncHandler(async (req, res) => {
     .populate(CLASS_POPULATE)
     .sort("-createdAt");
   const shaped = classes.map(shapeResponse);
+  if (!isAdmin(req.user)) {
+    return res.json(shaped.map(sanitizeClassForPublic));
+  }
   const hydrated = await hydrateStudentsForClasses(shaped);
   res.json(hydrated);
 });
@@ -128,12 +223,31 @@ exports.getClassById = asyncHandler(async (req, res) => {
   }
 
   const shaped = shapeResponse(classItem);
+  if (!canSeeClassRoster(classItem, req.user)) {
+    return res.json(sanitizeClassForPublic(shaped));
+  }
   const [hydrated] = await hydrateStudentsForClasses([shaped]);
   res.json(hydrated);
 });
 
 exports.updateClass = asyncHandler(async (req, res) => {
   const payload = normalizePayload(req.body);
+  const teacherId =
+    payload.teacherId !== undefined
+      ? payload.teacherId
+      : (await Class.findById(req.params.id).select("teacherId"))?.teacherId;
+  const conflict = await findTeacherScheduleConflict({
+    teacherId,
+    scheduleSlots: payload.scheduleSlots,
+    excludeClassId: req.params.id,
+  });
+  if (conflict) {
+    return res.status(409).json({
+      message: `Giáo viên đã có lịch trùng với lớp "${conflict.className}".`,
+      code: "TEACHER_SCHEDULE_CONFLICT",
+      conflictClassId: conflict._id,
+    });
+  }
   const classItem = await Class.findByIdAndUpdate(req.params.id, payload, {
     new: true,
     runValidators: true,
@@ -162,6 +276,29 @@ exports.addStudentToClass = asyncHandler(async (req, res) => {
   const { studentId } = req.body;
   if (!studentId) {
     return res.status(400).json({ message: "Thiếu studentId" });
+  }
+  const [classItem, student] = await Promise.all([
+    Class.findById(id).select("studentIds maxStudents status"),
+    Student.findOne({ _id: studentId, isDeleted: { $ne: true } }).select("_id"),
+  ]);
+  if (!classItem) return res.status(404).json({ message: "Lớp học không tồn tại" });
+  if (!student) return res.status(404).json({ message: "Học viên không tồn tại" });
+  if (["Finished", "Cancelled"].includes(classItem.status)) {
+    return res.status(400).json({ message: "Lớp này không nhận học viên mới" });
+  }
+  const alreadyInClass = (classItem.studentIds || []).some(
+    (idValue) => String(idValue) === String(studentId),
+  );
+  const currentStudents = classItem.studentIds?.length || 0;
+  if (
+    !alreadyInClass &&
+    Number(classItem.maxStudents || 0) > 0 &&
+    currentStudents >= Number(classItem.maxStudents)
+  ) {
+    return res.status(409).json({
+      message: "Lớp đã đầy. Vui lòng dùng danh sách chờ.",
+      code: "CLASS_FULL",
+    });
   }
   const updated = await Class.findByIdAndUpdate(
     id,

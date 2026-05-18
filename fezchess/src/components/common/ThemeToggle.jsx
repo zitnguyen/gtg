@@ -1,18 +1,24 @@
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
+import { cn } from "../../lib/utils";
 
-const ThemeToggle = ({ className = "" }) => {
+const ThemeToggle = ({ className }) => {
   const { isDark, toggleTheme } = useTheme();
 
   return (
     <button
       type="button"
       onClick={toggleTheme}
-      className={`inline-flex items-center justify-center w-9 h-9 rounded-full border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-700 transition-colors ${className}`}
-      title={isDark ? "Chuyển sang Light mode" : "Chuyển sang Dark mode"}
-      aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+      className={cn(
+        "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border",
+        "bg-background text-foreground hover:bg-muted transition-colors",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+        className,
+      )}
+      aria-label={isDark ? "Chuyển sang giao diện sáng" : "Chuyển sang giao diện tối"}
+      title={isDark ? "Giao diện sáng" : "Giao diện tối"}
     >
-      {isDark ? <Sun size={16} /> : <Moon size={16} />}
+      {isDark ? <Sun size={18} aria-hidden /> : <Moon size={18} aria-hidden />}
     </button>
   );
 };

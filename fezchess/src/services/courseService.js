@@ -24,6 +24,10 @@ const courseService = {
     return await axiosClient.put(`/courses/${id}`, courseData);
   },
 
+  deleteCourse: async (id) => {
+    return await axiosClient.delete(`/courses/${id}`);
+  },
+
   getCourseById: async (id) => {
       return await axiosClient.get(`/courses/id/${id}`); 
   },
@@ -49,12 +53,32 @@ const courseService = {
   },
 
   // Chapters & Lessons
+  getChaptersByCourse: async (courseId) => {
+    return await axiosClient.get(`/chapters/course/${courseId}`);
+  },
+
   addChapter: async (chapterData) => {
       return await axiosClient.post('/chapters', chapterData);
   },
 
+  updateChapter: async (id, chapterData) => {
+    return await axiosClient.put(`/chapters/${id}`, chapterData);
+  },
+
+  deleteChapter: async (id) => {
+    return await axiosClient.delete(`/chapters/${id}`);
+  },
+
   addLesson: async (lessonData) => {
       return await axiosClient.post('/lessons', lessonData);
+  },
+
+  updateLesson: async (id, lessonData) => {
+    return await axiosClient.put(`/lessons/${id}`, lessonData);
+  },
+
+  deleteLesson: async (id) => {
+    return await axiosClient.delete(`/lessons/${id}`);
   },
 
   getLessonById: async (id) => {
@@ -71,6 +95,9 @@ const courseService = {
   },
   getParentMyCourses: async () => {
       return await axiosClient.get("/courses/parent/my-courses");
+  },
+  getUserMyCourses: async () => {
+      return await axiosClient.get("/courses/user/my-courses");
   },
   saveMyLessonChessProgress: async (lessonId, payload) => {
       return await axiosClient.put(`/lessons/${lessonId}/chess-progress`, payload);

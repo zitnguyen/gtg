@@ -1,7 +1,25 @@
+const crypto = require("crypto");
 const Parent = require("../models/Parents");
 const User = require("../models/User");
 const Student = require("../models/Student");
 const asyncHandler = require("../middleware/asyncHandler");
+
+const PARENT_UPDATABLE_FIELDS = ["fullName", "email", "phone", "address", "avatarUrl"];
+
+const pickParentPatch = (body = {}) => {
+  const patch = {};
+  PARENT_UPDATABLE_FIELDS.forEach((field) => {
+    if (body[field] !== undefined) {
+      patch[field] = typeof body[field] === "string" ? body[field].trim() : body[field];
+    }
+  });
+  return patch;
+};
+
+const generateTempPassword = () => {
+  // 12 ký tự alphanum, đủ entropy cho temp password và bắt đổi sau khi đăng nhập đầu.
+  return crypto.randomBytes(9).toString("base64").replace(/[+/=]/g, "").slice(0, 12);
+};
 
 exports.getAllParents = asyncHandler(async (req, res) => {
   const parents = await User.find({ role: { $regex: /^parent$/i } });
@@ -25,7 +43,7 @@ exports.createParent = asyncHandler(async (req, res) => {
   const { fullName, phone, email, address } = req.body;
 
   const username = phone;
-  const password = "123456";
+  const password = generateTempPassword();
   const emailToUse = email || `${phone}@zchess.com`;
 
   const existingUser = await User.findOne({
@@ -54,7 +72,11 @@ exports.createParent = asyncHandler(async (req, res) => {
 
   try {
     await parent.save();
-    res.status(201).json(parent);
+    // Trả mật khẩu tạm 1 lần để Admin chuyển tới phụ huynh; tránh log/persist nơi khác.
+    const payload = parent.toObject ? parent.toObject() : { ...parent };
+    delete payload.password;
+    payload.tempPassword = password;
+    res.status(201).json(payload);
   } catch (err) {
     if (err.code === 11000) {
       if (err.keyPattern?.phone)
@@ -84,9 +106,11 @@ exports.updateParent = asyncHandler(async (req, res) => {
   }
 
   try {
+    // Whitelist trường được sửa: tránh PH/Admin "leo quyền" qua role/password/isDeleted...
+    const patch = pickParentPatch(req.body);
     const parent = await User.findOneAndUpdate(
       { _id: req.params.id, role: { $regex: /^parent$/i } },
-      req.body,
+      { $set: patch },
       { new: true, runValidators: true },
     );
     if (!parent)

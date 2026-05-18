@@ -1,20 +1,21 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import authService from '../../services/authService';
+import { getDashboardPathByRole } from '../../constants/roleRoutes';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const user = authService.getCurrentUser();
   const location = useLocation();
 
   if (!user) {
-    // Redirect to login if not authenticated
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {
-    // Redirect to home/dashboard if authorized but wrong role
-    // Could also go to a dedicated Unauthorized page
-    return <Navigate to="/" replace />;
+    // Khi user đã login nhưng truy cập sai role, đẩy về dashboard đúng role
+    // thay vì rớt về public homepage (gây cảm giác "bị đăng xuất").
+    const fallback = getDashboardPathByRole(user.role) || '/';
+    return <Navigate to={fallback} replace />;
   }
 
   return children;

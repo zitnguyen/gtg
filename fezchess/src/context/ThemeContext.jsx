@@ -1,13 +1,17 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-
-const THEME_KEY = "theme";
-
-const getInitialTheme = () => {
-  if (typeof window === "undefined") return "light";
-  const saved = localStorage.getItem(THEME_KEY);
-  if (saved === "light" || saved === "dark") return saved;
-  return "light";
-};
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import {
+  applyTheme,
+  getStoredTheme,
+  getSystemTheme,
+  resolveInitialTheme,
+} from "../lib/theme";
 
 const ThemeContext = createContext({
   theme: "light",
@@ -16,27 +20,41 @@ const ThemeContext = createContext({
   setTheme: () => {},
 });
 
+const LIGHT_MIGRATION_KEY = "zchess-theme-default-light-v1";
+
 export const ThemeProvider = ({ children }) => {
-  const [theme, setThemeState] = useState(getInitialTheme);
+  const [theme, setThemeState] = useState(() => resolveInitialTheme());
 
   useEffect(() => {
-    const root = document.documentElement;
-    if (theme === "dark") {
-      root.classList.add("dark");
-    } else {
-      root.classList.remove("dark");
+    if (typeof window === "undefined") return;
+    if (!localStorage.getItem(LIGHT_MIGRATION_KEY)) {
+      localStorage.setItem(LIGHT_MIGRATION_KEY, "1");
+      localStorage.setItem("theme", "light");
+      setThemeState("light");
+      applyTheme("light");
+      return;
     }
-    localStorage.setItem(THEME_KEY, theme);
+    applyTheme(theme);
   }, [theme]);
 
-  const setTheme = (nextTheme) => {
-    if (nextTheme !== "light" && nextTheme !== "dark") return;
-    setThemeState(nextTheme);
-  };
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = (event) => {
+      if (!getStoredTheme()) {
+        setThemeState(event.matches ? "dark" : "light");
+      }
+    };
+    media.addEventListener("change", onChange);
+    return () => media.removeEventListener("change", onChange);
+  }, []);
 
-  const toggleTheme = () => {
+  const setTheme = useCallback((next) => {
+    setThemeState(next === "dark" ? "dark" : "light");
+  }, []);
+
+  const toggleTheme = useCallback(() => {
     setThemeState((prev) => (prev === "dark" ? "light" : "dark"));
-  };
+  }, []);
 
   const value = useMemo(
     () => ({
@@ -45,10 +63,14 @@ export const ThemeProvider = ({ children }) => {
       toggleTheme,
       setTheme,
     }),
-    [theme],
+    [theme, toggleTheme, setTheme],
   );
 
-  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
+  return (
+    <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
+  );
 };
 
 export const useTheme = () => useContext(ThemeContext);
+
+export { getSystemTheme, resolveInitialTheme };
