@@ -1,3 +1,7 @@
+/**
+ * @legacy Thay bằng `pages/Admin/Dashboard/MainDashboard.jsx` (route `/dashboard`).
+ * Giữ để tham khảo biểu đồ cũ; không import trong App.jsx.
+ */
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import {
@@ -254,7 +258,7 @@ const Dashboard = () => {
           </div>
           <div ref={revenueChartRef} className="h-[300px] w-full min-w-0 min-h-[300px]">
             {revenueChartWidth > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width={Math.max(revenueChartWidth, 10)} height={300}>
                 <BarChart data={revenueData} barSize={40} barGap={8}>
                   <XAxis 
                       dataKey="name" 
@@ -296,7 +300,7 @@ const Dashboard = () => {
           </div>
           <div ref={levelChartRef} className="flex-1 flex flex-col justify-center items-center relative min-h-[250px] min-w-0">
               {levelChartWidth > 0 ? (
-                <ResponsiveContainer width="100%" height={220}>
+                <ResponsiveContainer width={Math.max(levelChartWidth, 10)} height={220}>
                   <PieChart>
                     <Pie
                       data={levelData}

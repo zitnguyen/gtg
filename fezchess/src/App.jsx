@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -8,9 +8,10 @@ import {
 
 import MainLayout from "./layouts/MainLayout";
 import ProtectedRoute from "./components/common/ProtectedRoute";
+import ErrorBoundary from "./components/common/ErrorBoundary";
+import NotFoundPage from "./components/common/NotFoundPage";
 
 // Admin Pages
-import Dashboard from "./pages/Admin/Dashboard/MainDashboard";
 import TeacherList from "./pages/Admin/Teachers/TeacherList";
 import TeacherForm from "./pages/Admin/Teachers/TeacherForm";
 import StudentList from "./pages/Admin/Students/StudentList";
@@ -27,21 +28,21 @@ import ParentList from "./pages/Admin/Parents/ParentList";
 import ParentForm from "./pages/Admin/Parents/ParentForm";
 import ProgressList from "./pages/Admin/Progress/ProgressList";
 import ProgressDetail from "./pages/Admin/Progress/ProgressDetail";
+import ProgressLessonTemplateAdmin from "./pages/Admin/Progress/ProgressLessonTemplateAdmin";
 import PostList from "./pages/Admin/CMS/PostList";
 import PostForm from "./pages/Admin/CMS/PostForm";
 import TestimonialList from "./pages/Admin/CMS/TestimonialList";
 import TestimonialForm from "./pages/Admin/CMS/TestimonialForm";
-import HeroSettingForm from "./pages/Admin/CMS/HeroSettingForm";
 import InquiryList from "./pages/Admin/CRM/InquiryList";
 import AdminCourseList from "./pages/Admin/Courses/AdminCourseList";
 import AdminCourseForm from "./pages/Admin/Courses/AdminCourseForm";
 
-import AdminPayroll from "./pages/Admin/Payroll/AdminPayroll";
 import SystemSettings from "./pages/Admin/Settings/SystemSettings";
 
 // Public Pages
 import CourseStorePage from "./pages/public/CourseStorePage";
 import CourseDetail from "./pages/public/CourseDetail";
+import CourseCheckoutPage from "./pages/public/CourseCheckoutPage";
 
 // Layouts
 import ParentLayout from "./layouts/ParentLayout";
@@ -50,12 +51,10 @@ import StudentLayout from "./layouts/StudentLayout";
 import PublicLayout from "./components/layout/PublicLayout"; // Using the component version
 
 // Portal Pages
-import ParentDashboard from "./pages/portal/Parent/ParentDashboard";
 import ParentSchedule from "./pages/portal/Parent/ParentSchedule";
 import ParentProgressView from "./pages/portal/Parent/ParentProgressView";
 import ParentMyCourses from "./pages/portal/Parent/ParentMyCourses";
 
-import TeacherDashboard from "./pages/portal/Teacher/Dashboard/TeacherDashboard";
 import TeachingLogList from "./pages/portal/Teacher/Payroll/TeachingLogList";
 import AssessmentList from "./pages/portal/Teacher/Assessment/AssessmentList";
 import TeacherClassList from "./pages/portal/Teacher/Classes/TeacherClassList";
@@ -64,13 +63,11 @@ import TeacherAttendance from "./pages/portal/Teacher/Attendance/TeacherAttendan
 import TeacherSchedule from "./pages/portal/Teacher/Schedule/TeacherSchedule";
 import TeacherSettings from "./pages/portal/Teacher/Settings/TeacherSettings";
 
-import StudentDashboard from "./pages/portal/Student/Dashboard/StudentDashboard";
 import StudentSchedule from "./pages/portal/Student/Schedule/StudentSchedule";
 import StudentProfile from "./pages/portal/Student/Profile/StudentProfile";
 import MyCourses from "./pages/portal/Student/MyCourses";
-import NotificationListPage from "./pages/shared/Notifications/NotificationListPage";
-import NotificationDetailPage from "./pages/shared/Notifications/NotificationDetailPage";
-import ChatPage from "./pages/shared/Chat/ChatPage";
+import TuitionPage from "./pages/portal/Student/Tuition/TuitionPage";
+import StudentPuzzleTodayPage from "./pages/shared/Exercises/StudentPuzzleTodayPage";
 
 // Auth & Public
 import Login from "./pages/auth/Login/Login";
@@ -81,11 +78,128 @@ import PostDetail from "./pages/public/PostDetail";
 import ContactPage from "./pages/public/ContactPage";
 import TeacherPage from "./pages/public/TeacherPage";
 import TeacherDetailPage from "./pages/public/TeacherDetailPage";
-import LearningPage from "./pages/public/LearningPage";
+import PrivacyPolicyPage from "./pages/public/PrivacyPolicyPage";
+import TermsOfUsePage from "./pages/public/TermsOfUsePage";
 import { Toaster, toast } from "sonner";
 import { SystemSettingsProvider } from "./context/SystemSettingsContext";
-import { ThemeProvider } from "./context/ThemeContext";
+import { ThemeProvider, useTheme } from "./context/ThemeContext";
 import { PublicCmsProvider } from "./context/PublicCmsContext";
+import FloatingSocialButtons from "./components/common/FloatingSocialButtons";
+import CrudRealtimeBridge from "./components/common/CrudRealtimeBridge";
+
+const LearningPage = lazy(() => import("./pages/public/LearningPage"));
+const ChatPage = lazy(() => import("./pages/shared/Chat/ChatPage"));
+const AdminPayroll = lazy(() => import("./pages/Admin/Payroll/AdminPayroll"));
+const PdfPuzzleImportPage = lazy(() => import("./pages/AdminImport/PdfPuzzleImportPage"));
+const NotificationListPage = lazy(
+  () => import("./pages/shared/Notifications/NotificationListPage"),
+);
+const NotificationDetailPage = lazy(
+  () => import("./pages/shared/Notifications/NotificationDetailPage"),
+);
+const AdminNotificationCreate = lazy(
+  () => import("./pages/Admin/Notifications/AdminNotificationCreate"),
+);
+const Dashboard = lazy(() => import("./pages/Admin/Dashboard/MainDashboard"));
+const HeroSettingForm = lazy(() => import("./pages/Admin/CMS/HeroSettingForm"));
+const AnalysisPage = lazy(() => import("./features/analysis/pages/AnalysisPage"));
+const PuzzleRushPage = lazy(
+  () => import("./features/training/pages/PuzzleRushPage"),
+);
+const PuzzleSurvivalPage = lazy(
+  () => import("./features/training/pages/PuzzleSurvivalPage"),
+);
+const DailyPuzzlePage = lazy(
+  () => import("./features/training/pages/DailyPuzzlePage"),
+);
+const TrainingHubPage = lazy(
+  () => import("./features/training/pages/TrainingHubPage"),
+);
+const LiveGamePage = lazy(() => import("./features/play/pages/LiveGamePage"));
+
+const CmsSuspenseFallback = () => (
+  <div className="flex min-h-[50vh] items-center justify-center text-muted-foreground">
+    Đang mở Public CMS Builder...
+  </div>
+);
+
+const withCmsSuspense = (element) => (
+  <Suspense fallback={<CmsSuspenseFallback />}>{element}</Suspense>
+);
+const ParentDashboard = lazy(() => import("./pages/portal/Parent/ParentDashboard"));
+const TeacherDashboard = lazy(
+  () => import("./pages/portal/Teacher/Dashboard/TeacherDashboard"),
+);
+const StudentDashboard = lazy(
+  () => import("./pages/portal/Student/Dashboard/StudentDashboard"),
+);
+
+const DashboardSuspenseFallback = () => (
+  <div className="space-y-4 md:space-y-6">
+    <div className="h-24 rounded-2xl bg-muted/50 animate-pulse" />
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div key={i} className="h-32 rounded-2xl bg-muted/50 animate-pulse" />
+      ))}
+    </div>
+    <div className="h-72 rounded-2xl bg-muted/50 animate-pulse" />
+  </div>
+);
+
+const withDashboardSuspense = (element) => (
+  <Suspense fallback={<DashboardSuspenseFallback />}>{element}</Suspense>
+);
+
+const ChatPageRoute = () => (
+  <Suspense
+    fallback={
+      <div className="min-h-screen bg-background py-20 text-center text-foreground">
+        Đang tải hộp thoại...
+      </div>
+    }
+  >
+    <ChatPage />
+  </Suspense>
+);
+
+const ChessSuspenseFallback = ({ label = "Đang khởi động bàn cờ..." }) => (
+  <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-200">
+    {label}
+  </div>
+);
+
+const withChessSuspense = (element, label) => (
+  <Suspense fallback={<ChessSuspenseFallback label={label} />}>
+    {element}
+  </Suspense>
+);
+
+const withNotificationSuspense = (element) => (
+  <Suspense
+    fallback={
+      <div className="min-h-screen bg-background py-20 text-center text-foreground">
+        Đang tải thông báo...
+      </div>
+    }
+  >
+    {element}
+  </Suspense>
+);
+
+const ThemedToaster = () => {
+  const { isDark } = useTheme();
+  return (
+    <Toaster
+      position="top-right"
+      richColors
+      closeButton
+      theme={isDark ? "dark" : "light"}
+      toastOptions={{
+        className: "themed-toast",
+      }}
+    />
+  );
+};
 
 function App() {
   useEffect(() => {
@@ -116,11 +230,14 @@ function App() {
 
   return (
     <Router>
-      <ThemeProvider>
-        <SystemSettingsProvider>
-          <PublicCmsProvider>
-            <Toaster position="top-right" richColors closeButton />
-            <Routes>
+      <ErrorBoundary>
+        <ThemeProvider>
+          <SystemSettingsProvider>
+            <PublicCmsProvider>
+              <ThemedToaster />
+              <FloatingSocialButtons />
+              <CrudRealtimeBridge />
+              <Routes>
             {/* Public Routes */}
             <Route element={<PublicLayout />}>
               <Route path="/" element={<HomePage />} />
@@ -129,10 +246,21 @@ function App() {
                 element={<Navigate to="/contact" replace />}
               />
               <Route path="/courses" element={<CourseStorePage />} />
+              <Route path="/courses/:slug/checkout" element={<CourseCheckoutPage />} />
               <Route path="/courses/:slug" element={<CourseDetail />} />
               <Route
                 path="/learning/:courseSlug/:lessonId"
-                element={<LearningPage />}
+                element={
+                  <Suspense
+                    fallback={
+                      <div className="min-h-screen bg-background py-20 text-center text-foreground">
+                        Đang tải bài học...
+                      </div>
+                    }
+                  >
+                    <LearningPage />
+                  </Suspense>
+                }
               />
 
               <Route path="/news" element={<NewsPage />} />
@@ -140,6 +268,64 @@ function App() {
               <Route path="/teachers" element={<TeacherPage />} />
               <Route path="/teachers/:id" element={<TeacherDetailPage />} />
               <Route path="/contact" element={<ContactPage />} />
+              <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+              <Route path="/terms-of-use" element={<TermsOfUsePage />} />
+              <Route
+                path="/analysis"
+                element={withChessSuspense(
+                  <AnalysisPage />,
+                  "Đang khởi động Analysis Board...",
+                )}
+              />
+              <Route
+                path="/training"
+                element={
+                  <Suspense
+                    fallback={
+                      <div className="min-h-screen bg-slate-950 py-20 text-center text-slate-300">
+                        Đang tải…
+                      </div>
+                    }
+                  >
+                    <TrainingHubPage />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/play/live"
+                element={withChessSuspense(
+                  <LiveGamePage />,
+                  "Đang mở phòng đối kháng…",
+                )}
+              />
+              <Route
+                path="/play/live/:code"
+                element={withChessSuspense(
+                  <LiveGamePage />,
+                  "Đang mở phòng đối kháng…",
+                )}
+              />
+              <Route
+                path="/training/puzzle-rush"
+                element={withChessSuspense(
+                  <PuzzleRushPage />,
+                  "Đang chuẩn bị Puzzle Rush...",
+                )}
+              />
+              <Route
+                path="/training/puzzle-survival"
+                element={withChessSuspense(
+                  <PuzzleSurvivalPage />,
+                  "Đang chuẩn bị Puzzle Survival...",
+                )}
+              />
+              <Route
+                path="/training/daily"
+                element={withChessSuspense(
+                  <DailyPuzzlePage />,
+                  "Đang chuẩn bị Daily Puzzle...",
+                )}
+              />
             </Route>
 
             <Route path="/login" element={<Login />} />
@@ -150,9 +336,7 @@ function App() {
               path="/dashboard"
               element={
                 <ProtectedRoute allowedRoles={["Admin"]}>
-                  <MainLayout>
-                    <Dashboard />
-                  </MainLayout>
+                  <MainLayout>{withDashboardSuspense(<Dashboard />)}</MainLayout>
                 </ProtectedRoute>
               }
             />
@@ -427,6 +611,16 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/admin/progress-lesson-templates"
+              element={
+                <ProtectedRoute allowedRoles={["Admin"]}>
+                  <MainLayout>
+                    <ProgressLessonTemplateAdmin />
+                  </MainLayout>
+                </ProtectedRoute>
+              }
+            />
 
             {/* CMS & CRM */}
             <Route
@@ -494,7 +688,7 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={["Admin"]}>
                   <MainLayout>
-                    <HeroSettingForm />
+                    {withCmsSuspense(<HeroSettingForm />)}
                   </MainLayout>
                 </ProtectedRoute>
               }
@@ -541,13 +735,39 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/admin/exercises"
+              element={
+                <ProtectedRoute allowedRoles={["Admin"]}>
+                  <MainLayout>
+                    <Suspense
+                      fallback={
+                        <div className="min-h-screen bg-background py-20 text-center text-foreground">
+                          Đang tải import puzzle...
+                        </div>
+                      }
+                    >
+                      <PdfPuzzleImportPage />
+                    </Suspense>
+                  </MainLayout>
+                </ProtectedRoute>
+              }
+            />
 
             <Route
               path="/admin/payroll"
               element={
                 <ProtectedRoute allowedRoles={["Admin"]}>
                   <MainLayout>
-                    <AdminPayroll />
+                    <Suspense
+                      fallback={
+                        <div className="min-h-screen bg-background py-20 text-center text-foreground">
+                          Đang tải bảng lương...
+                        </div>
+                      }
+                    >
+                      <AdminPayroll />
+                    </Suspense>
                   </MainLayout>
                 </ProtectedRoute>
               }
@@ -557,7 +777,19 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={["Admin"]}>
                   <MainLayout>
-                    <NotificationListPage basePath="/admin/notifications" />
+                    {withNotificationSuspense(
+                      <NotificationListPage basePath="/admin/notifications" />,
+                    )}
+                  </MainLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/notifications/new"
+              element={
+                <ProtectedRoute allowedRoles={["Admin"]}>
+                  <MainLayout>
+                    {withNotificationSuspense(<AdminNotificationCreate />)}
                   </MainLayout>
                 </ProtectedRoute>
               }
@@ -567,7 +799,9 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={["Admin"]}>
                   <MainLayout>
-                    <NotificationDetailPage basePath="/admin/notifications" />
+                    {withNotificationSuspense(
+                      <NotificationDetailPage basePath="/admin/notifications" />,
+                    )}
                   </MainLayout>
                 </ProtectedRoute>
               }
@@ -588,7 +822,7 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={["Admin"]}>
                   <MainLayout>
-                    <ChatPage />
+                    <ChatPageRoute />
                   </MainLayout>
                 </ProtectedRoute>
               }
@@ -605,7 +839,10 @@ function App() {
                 <ProtectedRoute allowedRoles={["Teacher"]}>
                   <TeacherLayout>
                     <Routes>
-                      <Route path="dashboard" element={<TeacherDashboard />} />
+                      <Route
+                        path="dashboard"
+                        element={withDashboardSuspense(<TeacherDashboard />)}
+                      />
                       <Route path="classes" element={<TeacherClassList />} />
                       <Route
                         path="classes/:classId"
@@ -618,19 +855,49 @@ function App() {
                       <Route path="schedule" element={<TeacherSchedule />} />
                       <Route path="payroll" element={<TeachingLogList />} />
                       <Route path="assessments" element={<AssessmentList />} />
+                      <Route
+                        path="exercises"
+                        element={
+                          <Suspense
+                            fallback={
+                              <div className="p-10 text-center text-foreground">
+                                Đang tải import puzzle...
+                              </div>
+                            }
+                          >
+                            <PdfPuzzleImportPage />
+                          </Suspense>
+                        }
+                      />
                       <Route path="settings" element={<TeacherSettings />} />
-                      <Route path="chat" element={<ChatPage />} />
+                      <Route path="chat" element={<ChatPageRoute />} />
+                      <Route
+                        path="analysis"
+                        element={withChessSuspense(<AnalysisPage />)}
+                      />
+                      <Route
+                        path="training/puzzle-rush"
+                        element={withChessSuspense(<PuzzleRushPage />)}
+                      />
+                      <Route
+                        path="training/puzzle-survival"
+                        element={withChessSuspense(<PuzzleSurvivalPage />)}
+                      />
+                      <Route
+                        path="training/daily"
+                        element={withChessSuspense(<DailyPuzzlePage />)}
+                      />
                       <Route
                         path="notifications"
-                        element={
-                          <NotificationListPage basePath="/teacher/notifications" />
-                        }
+                        element={withNotificationSuspense(
+                          <NotificationListPage basePath="/teacher/notifications" />,
+                        )}
                       />
                       <Route
                         path="notifications/:id"
-                        element={
-                          <NotificationDetailPage basePath="/teacher/notifications" />
-                        }
+                        element={withNotificationSuspense(
+                          <NotificationDetailPage basePath="/teacher/notifications" />,
+                        )}
                       />
                       <Route
                         path="*"
@@ -655,22 +922,26 @@ function App() {
                 <ProtectedRoute allowedRoles={["Parent"]}>
                   <ParentLayout>
                     <Routes>
-                      <Route path="dashboard" element={<ParentDashboard />} />
+                      <Route
+                        path="dashboard"
+                        element={withDashboardSuspense(<ParentDashboard />)}
+                      />
                       <Route path="schedule" element={<ParentSchedule />} />
                       <Route path="courses" element={<ParentMyCourses />} />
                       <Route path="progress" element={<ParentProgressView />} />
-                      <Route path="chat" element={<ChatPage />} />
+                      <Route path="daily-exercises" element={<StudentPuzzleTodayPage />} />
+                      <Route path="chat" element={<ChatPageRoute />} />
                       <Route
                         path="notifications"
-                        element={
-                          <NotificationListPage basePath="/parent/notifications" />
-                        }
+                        element={withNotificationSuspense(
+                          <NotificationListPage basePath="/parent/notifications" />,
+                        )}
                       />
                       <Route
                         path="notifications/:id"
-                        element={
-                          <NotificationDetailPage basePath="/parent/notifications" />
-                        }
+                        element={withNotificationSuspense(
+                          <NotificationDetailPage basePath="/parent/notifications" />,
+                        )}
                       />
                       <Route
                         path="*"
@@ -695,22 +966,43 @@ function App() {
                 <ProtectedRoute allowedRoles={["Student"]}>
                   <StudentLayout>
                     <Routes>
-                      <Route path="dashboard" element={<StudentDashboard />} />
+                      <Route
+                        path="dashboard"
+                        element={withDashboardSuspense(<StudentDashboard />)}
+                      />
                       <Route path="schedule" element={<StudentSchedule />} />
                       <Route path="profile" element={<StudentProfile />} />
                       <Route path="courses" element={<MyCourses />} />
-                      <Route path="chat" element={<ChatPage />} />
+                      <Route path="tuition" element={<TuitionPage />} />
+                      <Route path="daily-exercises" element={<StudentPuzzleTodayPage />} />
+                      <Route path="chat" element={<ChatPageRoute />} />
+                      <Route
+                        path="analysis"
+                        element={withChessSuspense(<AnalysisPage />)}
+                      />
+                      <Route
+                        path="training/puzzle-rush"
+                        element={withChessSuspense(<PuzzleRushPage />)}
+                      />
+                      <Route
+                        path="training/puzzle-survival"
+                        element={withChessSuspense(<PuzzleSurvivalPage />)}
+                      />
+                      <Route
+                        path="training/daily"
+                        element={withChessSuspense(<DailyPuzzlePage />)}
+                      />
                       <Route
                         path="notifications"
-                        element={
-                          <NotificationListPage basePath="/student/notifications" />
-                        }
+                        element={withNotificationSuspense(
+                          <NotificationListPage basePath="/student/notifications" />,
+                        )}
                       />
                       <Route
                         path="notifications/:id"
-                        element={
-                          <NotificationDetailPage basePath="/student/notifications" />
-                        }
+                        element={withNotificationSuspense(
+                          <NotificationDetailPage basePath="/student/notifications" />,
+                        )}
                       />
                       <Route
                         path="*"
@@ -724,14 +1016,12 @@ function App() {
               }
             />
 
-            <Route
-              path="*"
-              element={<div className="p-20 text-center">Trang đang được cập nhật</div>}
-            />
-            </Routes>
-          </PublicCmsProvider>
-        </SystemSettingsProvider>
-      </ThemeProvider>
+              <Route path="*" element={<NotFoundPage />} />
+              </Routes>
+            </PublicCmsProvider>
+          </SystemSettingsProvider>
+        </ThemeProvider>
+      </ErrorBoundary>
     </Router>
   );
 }

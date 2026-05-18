@@ -1,3 +1,7 @@
+/**
+ * @legacy Trang public mock Unsplash; media thật qua CMS (posts, Public CMS).
+ * Không gắn route; không phải admin media library.
+ */
 import React from 'react';
 
 const GalleryPage = () => {

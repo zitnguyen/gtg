@@ -1,5 +1,8 @@
+/**
+ * @legacy Form đăng ký thử nghiệm; thay bằng ContactPage + CRM inquiries.
+ */
 import React, { useState } from 'react';
-import leadService from '../../services/leadService';
+import leadService from "../../../services/leadService";
 import { CheckCircle, ShieldCheck } from 'lucide-react';
 
 const TestRegisterPage = () => {
@@ -37,7 +40,7 @@ const TestRegisterPage = () => {
                   Cảm ơn bạn đã quan tâm. Bộ phận tư vấn của Z Chess sẽ liên hệ với bạn trong vòng 24h để sắp xếp lịch test năng lực cho bé.
               </p>
               <div style={{marginTop:'32px'}}>
-                  <a href="/" style={{color:'var(--brand-blue)', fontWeight:'bold', textDecoration:'underline'}}>Quay về trang chủ</a>
+                  <a href="/" style={{color:'var(--color-brand-blue)', fontWeight:'bold', textDecoration:'underline'}}>Quay về trang chủ</a>
               </div>
           </div>
       )
@@ -46,13 +49,13 @@ const TestRegisterPage = () => {
   return (
     <div className="form-section">
       <div className="register-info">
-         <h1 style={{fontSize:'42px', fontFamily:'var(--font-heading)', color:'var(--brand-blue-dark)', marginBottom:'24px'}}>ĐĂNG KÝ <span style={{color:'var(--brand-red)'}}>TEST NĂNG LỰC</span></h1>
+         <h1 style={{fontSize:'42px', fontFamily:'var(--font-heading)', color:'var(--color-brand-blue-strong)', marginBottom:'24px'}}>ĐĂNG KÝ <span style={{color:'var(--color-brand-red)'}}>TEST NĂNG LỰC</span></h1>
          <p style={{fontSize:'18px', color:'#4B5563', marginBottom:'32px', lineHeight:'1.6'}}>
-             Để lại thông tin để nhận tư vấn lộ trình học phù hợp nhất và nhận ưu đãi <span style={{fontWeight:'bold', color:'var(--brand-red)'}}>GIẢM 20%</span> học phí khóa đầu tiên.
+             Để lại thông tin để nhận tư vấn lộ trình học phù hợp nhất và nhận ưu đãi <span style={{fontWeight:'bold', color:'var(--color-brand-red)'}}>GIẢM 20%</span> học phí khóa đầu tiên.
          </p>
          
-         <div style={{background:'#F0F9FF', padding:'24px', borderRadius:'12px', borderLeft:'4px solid var(--brand-blue)'}}>
-             <h3 style={{display:'flex', alignItems:'center', gap:'10px', fontSize:'18px', fontWeight:'bold', marginBottom:'16px', color:'var(--brand-blue-dark)'}}>
+         <div style={{background:'#F0F9FF', padding:'24px', borderRadius:'12px', borderLeft:'4px solid var(--color-brand-blue)'}}>
+             <h3 style={{display:'flex', alignItems:'center', gap:'10px', fontSize:'18px', fontWeight:'bold', marginBottom:'16px', color:'var(--color-brand-blue-strong)'}}>
                  <ShieldCheck size={24} /> Cam kết từ Z Chess
              </h3>
              <ul style={{listStyle:'none', padding:0, color:'#374151', fontSize:'15px'}}>
@@ -65,7 +68,7 @@ const TestRegisterPage = () => {
       </div>
 
       <div className="form-box">
-          <h2 style={{fontSize:'24px', fontFamily:'var(--font-heading)', textAlign:'center', marginBottom:'24px', color:'var(--brand-blue-dark)'}}>FORM ĐĂNG KÝ</h2>
+          <h2 style={{fontSize:'24px', fontFamily:'var(--font-heading)', textAlign:'center', marginBottom:'24px', color:'var(--color-brand-blue-strong)'}}>FORM ĐĂNG KÝ</h2>
           <form onSubmit={handleSubmit}>
               <div>
                   <input 

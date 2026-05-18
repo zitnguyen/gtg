@@ -1,5 +1,9 @@
+/**
+ * @legacy CRUD `/products` không còn route BE; quản lý khóa học dùng AdminCourseList.
+ * Không gắn router; xem `pages/_legacy/README.md`.
+ */
 import React, { useState, useEffect } from "react";
-import productService from "../../../services/productService";
+import productService from "../services/productService";
 import { Edit, Trash2, Plus, MonitorPlay } from "lucide-react";
 
 const ProductManager = () => {

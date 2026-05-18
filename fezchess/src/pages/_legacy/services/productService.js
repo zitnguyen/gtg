@@ -1,4 +1,4 @@
-import axiosClient from '../api/axiosClient';
+import axiosClient from "../../../api/axiosClient";
 
 // For public endpoints we might need a separate client if axiosClient forces auth?
 // Assuming axiosClient handles it gracefully or we use a separate instance for public.
